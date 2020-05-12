@@ -1,0 +1,9 @@
+*.ipynb_checkpoints*
+data/
+logs
+notebooks/
+pretrained/
+*__pycache__*
+
+*.swp
+*.swo

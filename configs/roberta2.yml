@@ -1,0 +1,13 @@
+dataset:
+  df_path: ../data/train_stratified_5folds.csv
+
+model:
+  __class__: transformer_models.RobertaQA
+  __by_method__: from_pretrained
+  pretrained_model_name_or_path: ../pretrained/roberta-base/
+
+optimizer:
+  lr: 0.000006
+
+train_params:
+  num_epochs: 5
