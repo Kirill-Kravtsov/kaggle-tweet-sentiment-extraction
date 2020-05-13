@@ -115,12 +115,12 @@ def process_data(tweet, selected_text, sentiment, tokenizer, max_len):
     targets_start += 4
     targets_end += 4
 
-#    padding_length = max_len - len(input_ids)
-#    if padding_length > 0:
-#        input_ids = input_ids + ([1] * padding_length)
-#        mask = mask + ([0] * padding_length)
-#        token_type_ids = token_type_ids + ([0] * padding_length)
-#        tweet_offsets = tweet_offsets + ([(0, 0)] * padding_length)
+    padding_length = max_len - len(input_ids)
+    if padding_length > 0:
+        input_ids = input_ids + ([1] * padding_length)
+        mask = mask + ([0] * padding_length)
+        token_type_ids = token_type_ids + ([0] * padding_length)
+        tweet_offsets = tweet_offsets + ([(0, 0)] * padding_length)
     
     return {
         'ids': input_ids,
@@ -172,6 +172,6 @@ class TweetDataset(Dataset):
             'orig_tweet': data['orig_tweet'],
             'orig_selected': data['orig_selected'],
             'sentiment': data['sentiment'],
-            #'offsets': torch.tensor(data['offsets'], dtype=torch.long)
-            'offsets': data['offsets']
+            'offsets': torch.tensor(data['offsets'], dtype=torch.long)
+            #'offsets': data['offsets']
         }

@@ -148,7 +148,7 @@ def run_fold(config, args, val_fold):
         batch_size=16,
         num_workers=8,
         shuffle=True,
-        collate_fn = collator
+#        collate_fn = collator
     )    
     valid_loader = create_class_obj(
         config,
@@ -158,7 +158,7 @@ def run_fold(config, args, val_fold):
         batch_size=16,
         num_workers=8,
         shuffle=False,
-        collate_fn = collator
+#        collate_fn = collator
     )
     logging.info(
         f'Train #batches {len(train_loader)}, val #batches {len(valid_loader)}'
