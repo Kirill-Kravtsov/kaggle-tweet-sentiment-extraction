@@ -30,11 +30,16 @@ def jaccard_func(
     start_pred_batch = torch.argmax(start_logits, dim=1)
     end_pred_batch = torch.argmax(end_logits, dim=1)
     jaccards = []
+
+    if isinstance(offsets, torch.Tensor):
+        offsets = offsets.cpu().numpy()
+    else:
+        offsets = np.array(offsets)
     
     for start_pred, end_pred, offset, tweet, selected in zip(
         start_pred_batch.cpu().numpy(),
         end_pred_batch.cpu().numpy(),
-        offsets.cpu().numpy(),
+        offsets,
         orig_tweet,
         orig_selected
     ):

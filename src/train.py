@@ -15,6 +15,7 @@ from tokenizers import ByteLevelBPETokenizer
 from transformers import get_linear_schedule_with_warmup, AdamW
 from datasets import TweetDataset
 from losses import QACrossEntropyLoss
+from collators import DynamicPaddingCollator
 from callbacks import JaccardCallback
 from utils import seed_torch, processify
 
@@ -133,6 +134,12 @@ def run_fold(config, args, val_fold):
         max_num_samples = 100 if args.debug else None
     )
 
+    collator = create_class_obj(
+        config,
+        get_by_key='collator',
+        default_cls=DynamicPaddingCollator
+    )
+
     train_loader = create_class_obj(
         config,
         get_by_key='dataloader',
@@ -140,7 +147,8 @@ def run_fold(config, args, val_fold):
         dataset=train_data,
         batch_size=16,
         num_workers=8,
-        shuffle=True
+        shuffle=True,
+        collate_fn = collator
     )    
     valid_loader = create_class_obj(
         config,
@@ -149,7 +157,8 @@ def run_fold(config, args, val_fold):
         dataset=valid_data,
         batch_size=16,
         num_workers=8,
-        shuffle=False
+        shuffle=False,
+        collate_fn = collator
     )
     logging.info(
         f'Train #batches {len(train_loader)}, val #batches {len(valid_loader)}'

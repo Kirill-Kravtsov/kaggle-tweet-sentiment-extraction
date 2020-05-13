@@ -17,5 +17,5 @@ criterion:
   heads_reduction: sum
 
 train_params:
-  num_epochs: 5
+  num_epochs: 10
 
