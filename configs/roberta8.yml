@@ -14,7 +14,10 @@ scheduler:
   frac_training_steps: 0.1
 
 criterion:
-  heads_reduction: sum
+  __class__: losses.SmoothCrossEntropyLoss
+  smoothing : 0.1
+  heads_reduction: mean
 
 train_params:
-  num_epochs: 6
+  num_epochs: 5
+

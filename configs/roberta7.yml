@@ -14,8 +14,7 @@ scheduler:
   frac_training_steps: 0.1
 
 criterion:
-  heads_reduction: mean
+  heads_reduction: sum
 
 train_params:
   num_epochs: 5
-

@@ -16,7 +16,7 @@ from transformers import get_linear_schedule_with_warmup, AdamW
 from datasets import TweetDataset
 from losses import QACrossEntropyLoss
 from collators import DynamicPaddingCollator
-from callbacks import JaccardCallback
+from callbacks import JaccardCallback, SWACallback
 from utils import seed_torch, processify
 
 
@@ -29,6 +29,7 @@ TRAINING_DEFAULTS = {
     'num_epochs': 3,
     'verbose': True,
     'callbacks': [
+        SWACallback(swa_start=0, swa_freq=2),
         CriterionCallback(
             input_key=['start_positions', 'end_positions'],
             output_key=['start_logits', 'end_logits']
@@ -176,7 +177,7 @@ def run_fold(config, args, val_fold):
 
     criterion = create_class_obj(
         config,
-        get_by_key='loss',
+        get_by_key='criterion',
         default_cls=QACrossEntropyLoss
     )
 
@@ -205,8 +206,8 @@ def run_fold(config, args, val_fold):
         get_by_key='scheduler',
         default_cls=get_linear_schedule_with_warmup,
         optimizer=optimizer,
-        num_training_steps=len(train_loader)*train_params['num_epochs'],
-        num_warmup_steps=len(train_loader)*train_params['num_epochs']//10
+        num_training_steps=len(train_loader) * train_params['num_epochs'],
+        num_warmup_steps=len(train_loader) * train_params['num_epochs']//10
     )
 
     runner.train(

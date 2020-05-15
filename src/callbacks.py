@@ -1,5 +1,5 @@
-from catalyst.core import MetricCallback
-from utils import jaccard_func
+from catalyst.core import Callback, MetricCallback, CallbackOrder
+from utils import jaccard_func, CustomSWA
 
 
 class JaccardCallback(MetricCallback):
@@ -18,3 +18,29 @@ class JaccardCallback(MetricCallback):
             output_key=output_key
             #activation=activation
         )
+
+
+class SWACallback(Callback):
+
+    def __init__(self, swa_start=10, swa_freq=1, alpha=0.05):
+        super().__init__(order=CallbackOrder.Internal)
+        self.swa_start = swa_start
+        self.swa_freq = swa_freq
+        self.alpha = alpha
+        self.swapped = False
+
+    def on_stage_start(self, state):
+        state.optimizer = CustomSWA(
+            optimizer=state.optimizer,
+            swa_start=self.swa_start,
+            swa_freq=self.swa_freq,
+            alpha=self.alpha
+        )
+
+    def on_loader_end(self, state):
+        if (state.is_train_loader and self.swapped):
+            state.optimizer.swap_swa_sgd()
+            self.swapped = False
+        elif (state.is_valid_loader and not self.swapped):
+            state.optimizer.swap_swa_sgd()
+            self.swapped = True

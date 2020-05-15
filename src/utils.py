@@ -6,6 +6,7 @@ from multiprocessing import Process, Queue
 import numpy as np
 import torch
 from transformers.optimization import get_linear_schedule_with_warmup
+from torchcontrib.optim import SWA
 
 
 def seed_torch(seed=0):
@@ -75,6 +76,31 @@ def get_linear_schedule_with_warmup_frac(
         last_epoch=last_epoch
     )
 
+
+class CustomSWA(SWA):
+
+    def __init__(
+        self,
+        optimizer,
+        swa_start=None,
+        swa_freq=None,
+        alpha=0.05
+    ):
+        super().__init__(optimizer, swa_start=swa_start,
+                         swa_freq=swa_freq, swa_lr=None)
+        self.alpha = alpha
+
+    def update_swa_group(self, group):
+        for p in group['params']:
+            param_state = self.state[p]
+            if 'swa_buffer' not in param_state:
+                param_state['swa_buffer'] = torch.empty_like(p.data)
+                param_state['swa_buffer'].copy_(p.data)
+            else:
+                buf = param_state['swa_buffer']
+                diff = self.alpha * (p.data - buf)
+                buf.add_(diff)
+        group["n_avg"] += 1
 
 
 def processify(func):

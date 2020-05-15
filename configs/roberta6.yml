@@ -11,11 +11,11 @@ model:
 
 scheduler:
   __class__: utils.get_linear_schedule_with_warmup_frac
-  frac_training_steps: 0.1
+  frac_training_steps: 0.08333
 
 criterion:
   heads_reduction: mean
 
 train_params:
-  num_epochs: 5
+  num_epochs: 6
 
