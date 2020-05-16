@@ -6,6 +6,7 @@ import logging
 from copy import deepcopy
 import json
 import numpy as np
+from collections import OrderedDict
 import torch
 from torch.utils.data import DataLoader
 from catalyst.dl import SupervisedRunner
@@ -20,25 +21,26 @@ from callbacks import JaccardCallback, SWACallback
 from utils import seed_torch, processify
 
 
-logging.basicConfig()
-logging.getLogger().setLevel(logging.INFO)
+#logging.basicConfig(level=logging.ERROR)
+#logging.getLogger("catalyst.core.callbacks").setLevel(logging.ERROR)
 
 
 TRAINING_DEFAULTS = {
     'main_metric': 'jaccard',
     'num_epochs': 3,
-    'verbose': True,
-    'callbacks': [
-        SWACallback(swa_start=0, swa_freq=2),
-        CriterionCallback(
+    'verbose': 1,
+    'callbacks': OrderedDict([
+        ('swa', SWACallback(swa_start=0, swa_freq=1)),
+        ('criterion', CriterionCallback(
             input_key=['start_positions', 'end_positions'],
             output_key=['start_logits', 'end_logits']
-        ),
-        OptimizerCallback(),
-        JaccardCallback(),
-        SchedulerCallback(mode="batch")
-    ],
-    'minimize_metric': False
+        )),
+        ('optimizer', OptimizerCallback()),
+        ('jaccard', JaccardCallback()),
+        ('scheduler', SchedulerCallback(mode="batch"))
+    ]),
+    'minimize_metric': False,
+    'valid_loader': "valid_swa"
 }
 
 
@@ -60,7 +62,8 @@ def parse_args():
     assert (args.cv is False) or (args.val_fold is None)
 
     if args.model_name is None:
-        args.model_name = args.config.split('/')[-1].split('.')[0]
+        #args.model_name = args.config.split('/')[-1].split('.')[0]
+        args.model_name = os.path.splitext(os.path.basename(args.config))[0]
     #args.model_name += '_cv%i_fold%i'%(args.num_folds, args.val_fold)
     if args.debug:
         args.model_name += '_debug'
@@ -212,7 +215,7 @@ def run_fold(config, args, val_fold):
 
     runner.train(
         model=model,
-        loaders={'train': train_loader, 'valid': valid_loader},
+        loaders={'train': train_loader, 'valid': valid_loader, 'valid_swa': valid_loader},
         criterion=criterion,
         optimizer=optimizer,
         scheduler=scheduler,

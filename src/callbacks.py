@@ -37,10 +37,16 @@ class SWACallback(Callback):
             alpha=self.alpha
         )
 
-    def on_loader_end(self, state):
-        if (state.is_train_loader and self.swapped):
+    def on_loader_start(self, state):
+        if not (state.loader_name == "valid_swa") and self.swapped:
             state.optimizer.swap_swa_sgd()
             self.swapped = False
-        elif (state.is_valid_loader and not self.swapped):
+        elif (state.loader_name == "valid_swa") and not self.swapped:
             state.optimizer.swap_swa_sgd()
             self.swapped = True
+
+    def on_stage_end(self, state):
+        if not self.swapped:
+            state.optimizer.swap_swa_sgd()
+            self.swapped = True
+
