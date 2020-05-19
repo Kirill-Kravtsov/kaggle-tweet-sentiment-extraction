@@ -7,19 +7,25 @@ dataloader:
 model:
   __class__: transformer_models.RobertaQA
   __by_method__: from_pretrained
-  pretrained_model_name_or_path: ../pretrained/roberta-base-squad2/
+  pretrained_model_name_or_path: ../pretrained/roberta-large/
   p_drophead: 0.1
-  dropout: 0.02
-  pre_head_dropout: 0.05
+
+dataloader:
+  batch_size: 8
 
 scheduler:
   __class__: utils.get_linear_schedule_with_warmup_frac
-  frac_training_steps: 0.05
+  frac_training_steps: 0.1
 
 criterion:
   heads_reduction: mean
 
 callbacks:
+  swa:
+    __class__: callbacks.SWACallback
+    swa_start: 0
+    swa_freq: 2
+    num_swap_epochs: 1
   criterion:
     __class__: catalyst.dl.callbacks.CriterionCallback
     input_key:
@@ -28,6 +34,9 @@ callbacks:
     output_key:
       - start_logits
       - end_logits
+  optimizer:
+    __class__: catalyst.dl.callbacks.OptimizerCallback
+    accumulation_steps: 2
   jaccard:
     __class__: callbacks.JaccardCallback
   scheduler:
@@ -35,5 +44,5 @@ callbacks:
     mode: batch
 
 train_params:
-  num_epochs: 8
+  num_epochs: 5
 

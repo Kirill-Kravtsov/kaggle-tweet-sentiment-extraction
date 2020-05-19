@@ -1,0 +1,28 @@
+dataset:
+  df_path: ../data/train_stratified_5folds.csv
+
+dataloader:
+  batch_size: 32
+
+#tokenizer:
+#  __class__: transformers.AutoTokenizer
+#  __by_method__: from_pretrained
+#  __overwrite_defaults__: true
+#  pretrained_model_name_or_path: mrm8488/distilroberta-base-finetuned-sentiment
+#  cache_dir: ../pretrained/distilroberta-base-finetuned-sentiment/distilroberta-base-finetuned-sentiment-tok
+
+model:
+  __class__: transformer_models.RobertaQA
+  __by_method__: from_pretrained
+  pretrained_model_name_or_path: ../pretrained/distilroberta-base-finetuned-sentiment
+
+scheduler:
+  __class__: utils.get_linear_schedule_with_warmup_frac
+  frac_training_steps: 0.1
+
+criterion:
+  heads_reduction: mean
+
+train_params:
+  num_epochs: 5
+

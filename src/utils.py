@@ -49,15 +49,15 @@ def jaccard_func(
             jaccards.append(0)
         else:
             str_pred = tweet[offset[start_pred][0]:offset[end_pred][1]]
+
+            str_pred = str_pred.replace('!!!!', '!') if len(str_pred.split())==1 else str_pred
+            str_pred = str_pred.replace('..', '.') if len(str_pred.split())==1 else str_pred
+            str_pred = str_pred.replace('...', '.') if len(str_pred.split())==1 else str_pred
+
             a = set(selected.lower().split()) 
             b = set(str_pred.lower().split())
             c = a.intersection(b)
             jaccards.append(float(len(c)) / (len(a) + len(b) - len(c)))
-        #if random.random() > 0.99:
-        #    print()
-        #    print(str_pred)
-        #    print(selected)
-        #    print(jaccards[-1])
     return np.average(jaccards)
 
 
@@ -101,6 +101,22 @@ class CustomSWA(SWA):
                 diff = self.alpha * (p.data - buf)
                 buf.add_(diff)
         group["n_avg"] += 1
+
+    def update_model_weights(self):
+        for group in self.param_groups:
+            for p in group['params']:
+                param_state = self.state[p]
+                if 'swa_buffer' not in param_state:
+                    return
+                p.data.copy_(param_state['swa_buffer'])
+
+    def update_swa_weights(self):
+        for group in self.param_groups:
+            for p in group['params']:
+                param_state = self.state[p]
+                if 'swa_buffer' not in param_state:
+                    param_state['swa_buffer'] = torch.empty_like(p.data)
+                param_state['swa_buffer'].copy_(p.data)
 
 
 def processify(func):

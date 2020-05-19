@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as F
 
+
 """
 def drophead_hook(module, input, output):
     orig_shape = output[0].shape
@@ -11,7 +12,7 @@ def drophead_hook(module, input, output):
 
 """
 def drophead_hook(module, input, output):
-    if not module.training:
+    if (not module.training) or (module.p_drophead==0):
         return output
 
     batch_size = output[0].shape[0]
@@ -31,4 +32,3 @@ def drophead_hook(module, input, output):
     #print(self_att_res.sum(dim=(2,3)))
     self_att_res = self_att_res.permute(0, 2, 1, 3).view(*orig_shape)
     return (self_att_res,) + output[1:]
-

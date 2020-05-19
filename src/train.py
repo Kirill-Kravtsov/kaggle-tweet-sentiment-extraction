@@ -17,30 +17,37 @@ from transformers import get_linear_schedule_with_warmup, AdamW
 from datasets import TweetDataset
 from losses import QACrossEntropyLoss
 from collators import DynamicPaddingCollator
-from callbacks import JaccardCallback, SWACallback
+from callbacks import JaccardCallback, SWACallback, SheduledDropheadCallback
 from utils import seed_torch, processify
-
-
-#logging.basicConfig(level=logging.ERROR)
-#logging.getLogger("catalyst.core.callbacks").setLevel(logging.ERROR)
 
 
 TRAINING_DEFAULTS = {
     'main_metric': 'jaccard',
     'num_epochs': 3,
-    'verbose': 1,
-    'callbacks': OrderedDict([
-        ('swa', SWACallback(swa_start=0, swa_freq=1)),
-        ('criterion', CriterionCallback(
-            input_key=['start_positions', 'end_positions'],
-            output_key=['start_logits', 'end_logits']
-        )),
-        ('optimizer', OptimizerCallback()),
-        ('jaccard', JaccardCallback()),
-        ('scheduler', SchedulerCallback(mode="batch"))
-    ]),
+    'verbose': False,
     'minimize_metric': False,
     'valid_loader': "valid_swa"
+}
+
+
+DEFAULT_CALLBACKS = {
+    'swa': {
+        '__class__': "callbacks.SWACallback",
+        'swa_start': 0,
+        'swa_freq': 2
+    },
+    'criterion': {
+        '__class__': "catalyst.dl.callbacks.CriterionCallback",
+        'input_key': ["start_positions", "end_positions"],
+        'output_key': ["start_logits", "end_logits"]
+    },
+    'jaccard': {
+        '__class__': "callbacks.JaccardCallback"
+    },
+    'scheduler': {
+        '__class__': "catalyst.dl.callbacks.SchedulerCallback",
+        'mode': "batch"
+    }
 }
 
 
@@ -62,7 +69,6 @@ def parse_args():
     assert (args.cv is False) or (args.val_fold is None)
 
     if args.model_name is None:
-        #args.model_name = args.config.split('/')[-1].split('.')[0]
         args.model_name = os.path.splitext(os.path.basename(args.config))[0]
     #args.model_name += '_cv%i_fold%i'%(args.num_folds, args.val_fold)
     if args.debug:
@@ -79,6 +85,7 @@ def create_class_obj(dct, get_by_key=None, default_cls=None,
             dct = dct[get_by_key]
         else:
             dct = {}
+
     # determine class
     if '__class__' in dct:
         if type(dct['__class__']) == str:
@@ -99,11 +106,21 @@ def create_class_obj(dct, get_by_key=None, default_cls=None,
         del dct['__by_method__']
 
     # get params and create object
-    for k, v in kwargs.items():
-        if (k not in dct) or (overwite_config):
-            dct[k] = v
+    if dct.get('__overwrite_defaults__', False):
+        del dct['__overwrite_defaults__']
+    else:
+        for k, v in kwargs.items():
+            if (k not in dct) or (overwite_config):
+                dct[k] = v
 
     return cls(**dct)
+
+
+def create_callbacks(callback_dct):
+    callbacks = OrderedDict()
+    for name, args in callback_dct.items():
+        callbacks[name] = create_class_obj(args)
+    return callbacks
 
 
 @processify  # because of some gpu memory leak
@@ -114,7 +131,7 @@ def run_fold(config, args, val_fold):
 
     tokenizer = create_class_obj(
         config,
-        get_by_key='tokenzier',
+        get_by_key='tokenizer',
         default_cls=ByteLevelBPETokenizer,
         vocab_file=os.path.join(model_path, "vocab.json"), 
         merges_file=os.path.join(model_path, "merges.txt"),
@@ -151,8 +168,7 @@ def run_fold(config, args, val_fold):
         dataset=train_data,
         batch_size=16,
         num_workers=8,
-        shuffle=True,
-#        collate_fn = collator
+        shuffle=True
     )    
     valid_loader = create_class_obj(
         config,
@@ -161,9 +177,9 @@ def run_fold(config, args, val_fold):
         dataset=valid_data,
         batch_size=16,
         num_workers=8,
-        shuffle=False,
-#        collate_fn = collator
+        shuffle=False
     )
+
     logging.info(
         f'Train #batches {len(train_loader)}, val #batches {len(valid_loader)}'
     )
@@ -213,12 +229,15 @@ def run_fold(config, args, val_fold):
         num_warmup_steps=len(train_loader) * train_params['num_epochs']//10
     )
 
+    callbacks = create_callbacks(config.get('callbacks', DEFAULT_CALLBACKS))
+
     runner.train(
         model=model,
         loaders={'train': train_loader, 'valid': valid_loader, 'valid_swa': valid_loader},
         criterion=criterion,
         optimizer=optimizer,
         scheduler=scheduler,
+        callbacks=callbacks,
         logdir=logdir,
         **train_params
     )
@@ -250,7 +269,6 @@ def main():
         with open(path, 'w') as f:
             json.dump(avg_metrics, f)
     print(avg_metrics)
-                    
 
 
 if __name__ == "__main__":

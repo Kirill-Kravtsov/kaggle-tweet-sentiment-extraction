@@ -70,6 +70,36 @@ class SmoothCrossEntropyLoss(_WeightedLoss):
         return total_loss
 
 
+
+class SoftCrossEntropyLoss(_WeightedLoss):
+
+    def __init__(self, weight=None, reduction='mean'):
+        super().__init__(weight=weight, reduction=reduction)
+
+    @staticmethod
+    def _pos_weight(pred_tensor, pos_tensor, neg_weight=1, pos_weight=1):
+        # neg_weight for when pred position < target position
+        # pos_weight for when pred position > target position
+        gap = torch.argmax(pred_tensor, dim=1) - pos_tensor
+        gap = gap.type(torch.float32)
+        return torch.where(gap < 0, -neg_weight * gap, pos_weight * gap)
+
+    def forward(self, start_logits, end_logits, start_positions, end_positions):
+        loss_fct = nn.CrossEntropyLoss(reduce='none') # do reduction later
+        
+        start_pos = self._pos_weight(start_logits, start_positions, 1, 1)
+        end_pos = self._pos_weight(end_logits, end_positions, 1, 1)
+
+        start_loss = loss_fct(start_logits, start_positions) * start_pos
+        end_loss = loss_fct(end_logits, end_positions) * end_pos
+        
+        start_loss = torch.mean(start_loss)
+        end_loss = torch.mean(end_loss)
+        
+        total_loss = (start_loss + end_loss)/4
+        return total_loss
+
+
 """
 class AggregatedLoss(nn.Module)
     __constants__ = ['reduction']
