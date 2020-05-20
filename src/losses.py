@@ -24,7 +24,7 @@ class QACrossEntropyLoss(_Loss):
 
 class SmoothCrossEntropyLoss(_WeightedLoss):
 
-    def __init__(self, weight=None, reduction='mean', smoothing=0.0, heads_reduction='mean'):
+    def __init__(self, weight=None, reduction='mean', smoothing=0.2, heads_reduction='mean'):
         assert heads_reduction in ['mean', 'sum']
         super().__init__(weight=weight, reduction=reduction)
         self.smoothing = smoothing
@@ -73,8 +73,9 @@ class SmoothCrossEntropyLoss(_WeightedLoss):
 
 class SoftCrossEntropyLoss(_WeightedLoss):
 
-    def __init__(self, weight=None, reduction='mean'):
+    def __init__(self, weight=None, reduction='mean', heads_reduction='mean'):
         super().__init__(weight=weight, reduction=reduction)
+        self.heads_reduction = heads_reduction
 
     @staticmethod
     def _pos_weight(pred_tensor, pos_tensor, neg_weight=1, pos_weight=1):
@@ -95,8 +96,10 @@ class SoftCrossEntropyLoss(_WeightedLoss):
         
         start_loss = torch.mean(start_loss)
         end_loss = torch.mean(end_loss)
-        
-        total_loss = (start_loss + end_loss)/4
+        total_loss = start_loss + end_loss
+
+        if self.heads_reduction == 'mean':
+            total_loss = (start_loss + end_loss)/2
         return total_loss
 
 

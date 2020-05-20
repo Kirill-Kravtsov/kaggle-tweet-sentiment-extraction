@@ -64,6 +64,8 @@ def parse_args():
     parser.add_argument('--cv', action='store_true')
     parser.add_argument('--model-name', default=None)
     parser.add_argument('--val-fold', type=int, default=None)
+    parser.add_argument('--logdir', type=str, default="../logs")
+
     args = parser.parse_args()
 
     assert (args.cv is False) or (args.val_fold is None)
@@ -218,7 +220,7 @@ def run_fold(config, args, val_fold):
     for k, v in TRAINING_DEFAULTS.items():
         if k not in train_params:
             train_params[k] = v
-    logdir = os.path.join("../logs", args.model_name, f"fold_{val_fold}")
+    logdir = os.path.join(args.logdir, args.model_name, f"fold_{val_fold}")
 
     scheduler = create_class_obj(
         config,
@@ -256,6 +258,7 @@ def main():
         avg_metrics = run_fold(config, args, args.val_fold)
     elif args.cv:
         avg_metrics = {}
+        best_metrics = []
         for val_fold in range(5):
             metrics = run_fold(config, args, val_fold)
             if val_fold == 0:
@@ -263,9 +266,11 @@ def main():
             else:
                 for k, v in metrics.items():
                     avg_metrics[k].append(v)
+            best_metrics.append(np.max(list(metrics.values())))
         avg_metrics = {k:np.average(v) for k, v in avg_metrics.items()}
+        avg_metrics['best'] = np.average(best_metrics)
 
-        path = os.path.join("../logs", args.model_name, "avg_metrics.json")
+        path = os.path.join(args.logdir, args.model_name, "avg_metrics.json")
         with open(path, 'w') as f:
             json.dump(avg_metrics, f)
     print(avg_metrics)

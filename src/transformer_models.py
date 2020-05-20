@@ -19,21 +19,25 @@ class RobertaQA(BertPreTrainedModel):
         p_drophead=None,
         num_take_layers=2,
         freeze_embeds=False,
-        layers_agg="concat"
+        layers_agg="concat",
+        multi_sample_dropout=False
     ):
         assert layers_agg in ["concat", "sum"]
         config.attention_probs_dropout_prob = dropout
         super().__init__(config)
         self.layers_agg = layers_agg
-        self.num_take_layers = num_take_layers
+        self.num_take_layers = int(num_take_layers)  # int because of hyperopt
+        self.multi_sample_dropout = multi_sample_dropout
         config.output_hidden_states = True
 
         self.roberta = RobertaModel(config)
         self.dropout = nn.Dropout(pre_head_dropout)
+        if multi_sample_dropout:
+            self.final_dropout = nn.Dropout(0.5)
 
         lin_input_size = config.hidden_size
         if layers_agg == "concat":
-            lin_input_size *= num_take_layers
+            lin_input_size *= self.num_take_layers
         else:
             self.hid_att = nn.Linear(config.hidden_size, 1)
 
@@ -71,8 +75,17 @@ class RobertaQA(BertPreTrainedModel):
             out = (out * scores.unsqueeze(-1)).sum(dim=2)
 
 
-        out = self.dropout(out)
-        logits = self.l0(out)
+        if self.multi_sample_dropout:
+            logits = torch.mean(
+                torch.stack(
+                    [self.l0(self.final_dropout(out)) for _ in range(5)],
+                    dim=0,
+                ),
+                dim=0,
+            )
+        else:
+            out = self.dropout(out)
+            logits = self.l0(out)
         
         pad_len = full_len - max_len
         logits = F.pad(logits, (0, 0, 0, pad_len), value=0)

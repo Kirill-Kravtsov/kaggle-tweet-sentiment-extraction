@@ -4,6 +4,9 @@ logs
 notebooks/
 pretrained/
 *__pycache__*
+*tmp/
+mongodb
+optimization
 
 *.swp
 *.swo
