@@ -1,5 +1,8 @@
 import re
-from catalyst.core import Callback, MetricCallback, CallbackOrder
+from typing import Dict, Tuple, Union
+from pathlib import Path
+from catalyst.core import Callback, MetricCallback, CallbackOrder, utils
+from catalyst.core.callbacks import CheckpointCallback
 from utils import jaccard_func, CustomSWA
 
 
@@ -138,8 +141,6 @@ class LogPredsCallback(Callback):
             self.epoch_log[key][state.loader_name].append(batch_pred)
 
 
-
-
 class SheduledDropheadCallback(Callback):
 
     def __init__(self, cooldown_fraq=0.8, do_warmup=True):
@@ -169,3 +170,53 @@ class SheduledDropheadCallback(Callback):
             cur_p = self._get_current_p(step)
             for bert_layer in state.model.roberta.encoder.layer:
                 bert_layer.attention.self.p_drophead = cur_p
+
+
+class CustomCheckpointCallback(CheckpointCallback):
+
+    def __init__(
+        self,
+        save_n_best: int = 1,
+        resume: str = None,
+        resume_dir: str = None,
+        metrics_filename: str = "_metrics.json",
+        load_on_stage_end: Union[str, Dict[str, str]] = None,
+        save_full = False
+    ):
+        super().__init__(save_n_best, resume, resume_dir, metrics_filename,
+                         load_on_stage_end)
+        self.save_full = save_full
+
+    def _save_checkpoint(
+        self,
+        logdir: Union[str, Path],
+        suffix: str,
+        checkpoint: Dict,
+        is_best: bool,
+        is_last: bool,
+    ) -> Tuple[str, str]:
+        if self.save_full:
+            full_checkpoint_path = utils.save_checkpoint(
+                logdir=Path(f"{logdir}/checkpoints/"),
+                checkpoint=checkpoint,
+                suffix=f"{suffix}_full",
+                is_best=is_best,
+                is_last=is_last,
+                special_suffix="_full",
+            )
+        else:
+            full_checkpoint_path = None 
+
+        exclude = ["criterion", "optimizer", "scheduler"]
+        checkpoint_path = utils.save_checkpoint(
+            checkpoint={
+                key: value
+                for key, value in checkpoint.items()
+                if all(z not in key for z in exclude)
+            },
+            logdir=Path(f"{logdir}/checkpoints/"),
+            suffix=suffix,
+            is_best=is_best,
+            is_last=is_last,
+        )
+        return (full_checkpoint_path, checkpoint_path)
