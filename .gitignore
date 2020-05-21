@@ -6,6 +6,7 @@ pretrained/
 *__pycache__*
 *tmp/
 mongodb
+results
 
 *.swp
 *.swo
