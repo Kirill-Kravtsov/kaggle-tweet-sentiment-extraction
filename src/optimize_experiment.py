@@ -124,6 +124,7 @@ def parse_args():
     parser.add_argument('--tmp-dir', type=str, default="tmp")
     parser.add_argument('--exp-name', type=str, default="test")
     parser.add_argument('--num-gpus', type=int, default=2)
+    parser.add_argument('--num-trials', type=int, default=400)
 
     args = parser.parse_args()
     args.results_dir = os.path.join(args.results_dir, args.exp_name)
@@ -158,7 +159,7 @@ def main():
     )
 
     trials = MongoTrials('mongo://localhost:1234/tweet_sent/jobs', exp_key=args.exp_name)
-    best = fmin(exp, space, trials=trials, algo=tpe.suggest, max_evals=10)
+    best = fmin(exp, space, trials=trials, algo=tpe.suggest, max_evals=args.num_trials)
 
 if __name__=="__main__":
     main()
