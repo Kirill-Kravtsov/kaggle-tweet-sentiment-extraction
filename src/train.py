@@ -190,7 +190,7 @@ def run_fold(config, args, train_folds, val_fold):
         batch_size=16,
         num_workers=8,
         shuffle=True
-    )    
+    )
     valid_loader = create_class_obj(
         config,
         get_by_key='dataloader',
@@ -262,7 +262,7 @@ def run_fold(config, args, train_folds, val_fold):
         logdir=logdir,
         **train_params
     )
-    
+
     with open(os.path.join(logdir, "checkpoints", "_metrics.json"), "r") as f:
         metrics = json.load(f)
     metrics = {k:v[2]['jaccard'] for k, v in metrics.items() if "epoch" in k}
@@ -286,7 +286,7 @@ def main():
             train_folds = [i for i in folds if i!=val_fold]
             metrics = run_fold(config, args, train_folds, val_fold)
             metrics = {int(k.split("_")[1])+1:v for k, v in metrics.items()}
-            if val_fold == 0:
+            if len(avg_metrics) == 0:
                 avg_metrics = {k:[v] for k, v in metrics.items()}
             else:
                 for k, v in metrics.items():
