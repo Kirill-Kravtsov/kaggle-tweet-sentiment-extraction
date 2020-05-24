@@ -1,4 +1,4 @@
-python /mnt/ssd/kirill/transformers/examples/language-modeling/run_language_modeling.py \
+python ../../transformers/examples/language-modeling/run_language_modeling.py \
 	--output_dir=../pretrained/lm_models/ \
 	--model_type=roberta \
 	--model_name_or_path=../pretrained/roberta-base/ \
