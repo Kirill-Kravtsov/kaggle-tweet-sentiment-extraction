@@ -19,6 +19,44 @@ def seed_torch(seed=0):
     torch.backends.cudnn.deterministic = True
 
 
+def jaccard_func_dense(
+    logits,
+    orig_tweet,
+    orig_selected,
+    offsets
+):
+    pred_masks = (logits.detach() > 0.6).long().cpu().numpy()
+    jaccards = []
+
+    if isinstance(offsets, torch.Tensor):
+        offsets = offsets.cpu().numpy()
+    else:
+        offsets = np.array(offsets)
+
+    for pred_mask, offset, tweet, selected in zip(
+        pred_masks,
+        offsets,
+        orig_tweet,
+        orig_selected
+    ):
+        if pred_mask.sum() == 0:
+            str_pred = tweet
+        else:
+            first_token_idx = np.argmax(pred_mask > 0)
+            last_token_idx = pred_mask.shape[0] - np.argmax(pred_mask[::-1] > 0) - 1
+            str_pred = tweet[offset[first_token_idx][0]:offset[last_token_idx][1]]
+
+            str_pred = str_pred.replace('!!!!', '!') if len(str_pred.split())==1 else str_pred
+            str_pred = str_pred.replace('..', '.') if len(str_pred.split())==1 else str_pred
+            str_pred = str_pred.replace('...', '.') if len(str_pred.split())==1 else str_pred
+
+        a = set(selected.lower().split())
+        b = set(str_pred.lower().split())
+        c = a.intersection(b)
+        jaccards.append(float(len(c)) / (len(a) + len(b) - len(c)))
+    return np.average(jaccards)
+
+
 def jaccard_func(
     start_positions,
     end_positions,

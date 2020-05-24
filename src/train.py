@@ -16,7 +16,7 @@ from catalyst.dl.callbacks import (CriterionCallback, MetricAggregationCallback,
                                    SchedulerCallback, OptimizerCallback,
                                    CheckpointCallback)
 from tokenizers import ByteLevelBPETokenizer
-from transformers import get_linear_schedule_with_warmup, AdamW
+from transformers import get_linear_schedule_with_warmup, AdamW, RobertaTokenizerFast
 from datasets import TweetDataset
 from losses import QACrossEntropyLoss
 from collators import DynamicPaddingCollator
@@ -149,14 +149,12 @@ def clear_checkpoints(logdir, best_epoch):
 def run_fold(config, args, train_folds, val_fold):
     print(f"Val fold: {val_fold}, train_folds: {train_folds}")
     model_path = config['model']['pretrained_model_name_or_path']
-
     tokenizer = create_class_obj(
         config,
         get_by_key='tokenizer',
-        default_cls=ByteLevelBPETokenizer,
+        default_cls=RobertaTokenizerFast,
         vocab_file=os.path.join(model_path, "vocab.json"), 
         merges_file=os.path.join(model_path, "merges.txt"),
-        lowercase=True,
         add_prefix_space=True
     )
     train_data = create_class_obj(
