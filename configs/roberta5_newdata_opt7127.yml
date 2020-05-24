@@ -1,0 +1,24 @@
+criterion:
+  __class__: losses.SmoothCrossEntropyLoss
+  heads_reduction: sum
+  smoothing: 0.44055346908371895
+dataloader:
+  batch_size: 32
+dataset:
+  df_path: ../data/train_stratified_5folds.csv
+model:
+  __by_method__: from_pretrained
+  __class__: transformer_models.RobertaQA
+  dropout: 0.4288071846662414
+  layers_agg: sum
+  multi_sample_dropout: false
+  num_take_layers: 7.0
+  pre_head_dropout: 0.49525884002504905
+  pretrained_model_name_or_path: ../pretrained/roberta-base
+optimizer:
+  lr: 4.608834020613945e-05
+scheduler:
+  __class__: utils.get_linear_schedule_with_warmup_frac
+  frac_training_steps: 0.0634276321181387
+train_params:
+  num_epochs: 6.0
