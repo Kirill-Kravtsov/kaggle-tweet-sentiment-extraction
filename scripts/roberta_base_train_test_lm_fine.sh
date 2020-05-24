@@ -1,0 +1,12 @@
+python /mnt/ssd/kirill/transformers/examples/language-modeling/run_language_modeling.py \
+	--output_dir=../pretrained/lm_models/ \
+	--model_type=roberta \
+	--model_name_or_path=../pretrained/roberta-base/ \
+	--do_train \
+	--train_data_file=../data/generated/train_test.txt \
+	--do_eval \
+	--eval_data_file=../data/generated/train_test.txt \
+	--mlm \
+	--overwrite_cache \
+	--line_by_line \
+	--overwrite_output_dir

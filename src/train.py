@@ -4,14 +4,17 @@ import pydoc
 import argparse
 import logging
 from copy import deepcopy
+from collections import OrderedDict
+import glob
 import json
 import numpy as np
-from collections import OrderedDict
+import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 from catalyst.dl import SupervisedRunner
 from catalyst.dl.callbacks import (CriterionCallback, MetricAggregationCallback,
-                                   SchedulerCallback, OptimizerCallback)
+                                   SchedulerCallback, OptimizerCallback,
+                                   CheckpointCallback)
 from tokenizers import ByteLevelBPETokenizer
 from transformers import get_linear_schedule_with_warmup, AdamW
 from datasets import TweetDataset
@@ -47,6 +50,10 @@ DEFAULT_CALLBACKS = {
     'scheduler': {
         '__class__': "catalyst.dl.callbacks.SchedulerCallback",
         'mode': "batch"
+    },
+    'checkpoint': {
+        '__class__': "callbacks.CustomCheckpointCallback",
+        'save_n_best': 10
     }
 }
 
@@ -64,6 +71,7 @@ def parse_args():
     parser.add_argument('--cv', action='store_true')
     parser.add_argument('--model-name', default=None)
     parser.add_argument('--val-fold', type=int, default=None)
+    parser.add_argument('--ignore-fold', type=int, default=None)
     parser.add_argument('--logdir', type=str, default="../logs")
 
     args = parser.parse_args()
@@ -74,7 +82,10 @@ def parse_args():
         args.model_name = os.path.splitext(os.path.basename(args.config))[0]
     #args.model_name += '_cv%i_fold%i'%(args.num_folds, args.val_fold)
     if args.debug:
-        args.model_name += '_debug'
+        args.model_name += "_debug"
+    if args.ignore_fold is not None:
+        args.model_name = os.path.join(args.model_name,
+                                       f"ignore_{args.ignore_fold}")
     return args
 
 
@@ -125,10 +136,18 @@ def create_callbacks(callback_dct):
     return callbacks
 
 
+def clear_checkpoints(logdir, best_epoch):
+    files = glob.glob(os.path.join(logdir, "*", "checkpoints", "*"))
+    for path in files:
+        if ("metrics" not in path) and ("best" not in path) \
+            and ("train."+str(best_epoch) not in path
+        ):
+            os.remove(path)
+
+
 @processify  # because of some gpu memory leak
-def run_fold(config, args, val_fold):
-    print(f"FOLD: {val_fold}")
-    train_folds = [fold for fold in range(5) if fold!=val_fold]
+def run_fold(config, args, train_folds, val_fold):
+    print(f"Val fold: {val_fold}, train_folds: {train_folds}")
     model_path = config['model']['pretrained_model_name_or_path']
 
     tokenizer = create_class_obj(
@@ -171,7 +190,7 @@ def run_fold(config, args, val_fold):
         batch_size=16,
         num_workers=8,
         shuffle=True
-    )    
+    )
     valid_loader = create_class_obj(
         config,
         get_by_key='dataloader',
@@ -243,7 +262,7 @@ def run_fold(config, args, val_fold):
         logdir=logdir,
         **train_params
     )
-    
+
     with open(os.path.join(logdir, "checkpoints", "_metrics.json"), "r") as f:
         metrics = json.load(f)
     metrics = {k:v[2]['jaccard'] for k, v in metrics.items() if "epoch" in k}
@@ -254,22 +273,34 @@ def main():
     seed_torch()
     args = parse_args()
     config = get_config(args.config)
+    folds = list(set(pd.read_csv(config['dataset']['df_path'])['fold']))
+    if args.ignore_fold is not None:
+        folds.remove(args.ignore_fold)
     if args.val_fold:
         avg_metrics = run_fold(config, args, args.val_fold)
     elif args.cv:
         avg_metrics = {}
         best_metrics = []
-        for val_fold in range(5):
-            metrics = run_fold(config, args, val_fold)
-            if val_fold == 0:
+        best_epochs = {}
+        for val_fold in folds:
+            train_folds = [i for i in folds if i!=val_fold]
+            metrics = run_fold(config, args, train_folds, val_fold)
+            metrics = {int(k.split("_")[1])+1:v for k, v in metrics.items()}
+            if len(avg_metrics) == 0:
                 avg_metrics = {k:[v] for k, v in metrics.items()}
             else:
                 for k, v in metrics.items():
                     avg_metrics[k].append(v)
             best_metrics.append(np.max(list(metrics.values())))
-        avg_metrics = {k:np.average(v) for k, v in avg_metrics.items()}
-        avg_metrics['best'] = np.average(best_metrics)
+            best_epochs[val_fold] = max(metrics, key=metrics.get)
 
+        avg_metrics = {k:np.average(v) for k, v in avg_metrics.items()}
+        avg_metrics['best_avg_epoch'] = max(avg_metrics, key=avg_metrics.get)
+        avg_metrics['best'] = np.average(best_metrics)
+        avg_metrics['best_epochs'] = best_epochs
+
+        clear_checkpoints(os.path.join(args.logdir, args.model_name),
+                          avg_metrics['best_avg_epoch'])
         path = os.path.join(args.logdir, args.model_name, "avg_metrics.json")
         with open(path, 'w') as f:
             json.dump(avg_metrics, f)
