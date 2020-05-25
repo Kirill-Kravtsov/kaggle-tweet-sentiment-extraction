@@ -20,7 +20,8 @@ class RobertaQA(BertPreTrainedModel):
         num_take_layers=2,
         freeze_embeds=False,
         layers_agg="concat",
-        multi_sample_dropout=False
+        multi_sample_dropout=False,
+        dense_output=False
     ):
         assert layers_agg in ["concat", "sum"]
         config.attention_probs_dropout_prob = dropout
@@ -28,6 +29,7 @@ class RobertaQA(BertPreTrainedModel):
         self.layers_agg = layers_agg
         self.num_take_layers = int(num_take_layers)  # int because of hyperopt
         self.multi_sample_dropout = multi_sample_dropout
+        self.dense_output = dense_output
         config.output_hidden_states = True
 
         self.roberta = RobertaModel(config)
@@ -41,7 +43,10 @@ class RobertaQA(BertPreTrainedModel):
         else:
             self.hid_att = nn.Linear(config.hidden_size, 1)
 
-        self.l0 = nn.Linear(lin_input_size, 2)
+        if dense_output:
+            self.l0 = nn.Linear(lin_input_size, 1)
+        else:
+            self.l0 = nn.Linear(lin_input_size, 2)
         self.init_weights()
         torch.nn.init.normal_(self.l0.weight, std=0.02)
 
@@ -90,11 +95,13 @@ class RobertaQA(BertPreTrainedModel):
         pad_len = full_len - max_len
         logits = F.pad(logits, (0, 0, 0, pad_len), value=0)
 
-        start_logits, end_logits = logits.split(1, dim=-1)
-        start_logits = start_logits.squeeze(-1)
-        end_logits = end_logits.squeeze(-1)
-
-        return start_logits, end_logits
+        if self.dense_output:
+            return logits.squeeze(-1)
+        else:
+            start_logits, end_logits = logits.split(1, dim=-1)
+            start_logits = start_logits.squeeze(-1)
+            end_logits = end_logits.squeeze(-1)
+            return start_logits, end_logits
 
 
 class JaccardRobertaQA(BertPreTrainedModel):

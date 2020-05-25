@@ -103,6 +103,30 @@ class SoftCrossEntropyLoss(_WeightedLoss):
         return total_loss
 
 
+class JaccardApproxLoss(_WeightedLoss):
+
+    def __init__(self, weight=None, reduction='mean'):
+        super().__init__(weight=weight, reduction=reduction)
+
+    def forward(self, logits, targets):
+        #t = torch.Tensor([0.5]).to(logits.device)
+        #logits = (logits >= t).long().squeeze(-1)
+
+        #logits = torch.relu(torch.sign(logits)).squeeze(-1)
+        #print(pred_mask.requires_grad)
+        #print(pred_mask.shape, targets.shape)
+        logits = logits.squeeze(-1)
+
+        bce = torch.nn.BCEWithLogitsLoss()(logits, targets.float())
+
+        logits = torch.sigmoid(logits)
+        intersection = logits * targets
+        num = intersection.sum(dim=1)
+        denum = targets.sum(dim=1) + logits.sum(dim=1) - num
+        jaccard = (-num / denum).float().mean() * 10
+
+        return (jaccard + bce)/2
+ 
 """
 class AggregatedLoss(nn.Module)
     __constants__ = ['reduction']

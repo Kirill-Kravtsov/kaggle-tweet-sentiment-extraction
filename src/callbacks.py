@@ -3,25 +3,35 @@ from typing import Dict, Tuple, Union
 from pathlib import Path
 from catalyst.core import Callback, MetricCallback, CallbackOrder, utils
 from catalyst.core.callbacks import CheckpointCallback
-from utils import jaccard_func, CustomSWA
+from utils import jaccard_func, jaccard_func_dense, CustomSWA
 
 
 class JaccardCallback(MetricCallback):
 
     def __init__(
         self,
-        input_key = ['start_positions', 'end_positions', 'orig_tweet', 'orig_selected', 'offsets'],
-        output_key = ['start_logits', 'end_logits'],
-        prefix = "jaccard",
-        activation = None
+        input_key=['start_positions', 'end_positions', 'orig_tweet', 'orig_selected', 'offsets'],
+        output_key=['start_logits', 'end_logits'],
+        prefix="jaccard",
+        activation=None,
+        dense=False
     ):
-        super().__init__(
-            prefix=prefix,
-            metric_fn=jaccard_func,
-            input_key=input_key,
-            output_key=output_key
-            #activation=activation
-        )
+        if dense:
+            super().__init__(
+                prefix=prefix,
+                metric_fn=jaccard_func_dense,
+                input_key=input_key,
+                output_key=output_key
+                #activation=activation
+            )
+        else:
+            super().__init__(
+                prefix=prefix,
+                metric_fn=jaccard_func,
+                input_key=input_key,
+                output_key=output_key
+                #activation=activation
+            )
 
 
 class SWACallback(Callback):

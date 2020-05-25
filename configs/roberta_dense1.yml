@@ -1,0 +1,51 @@
+dataset:
+  df_path: ../data/train_stratified_5folds.csv
+  preprocess_fn: datasets.roberta_preprocess2
+
+dataloader:
+  batch_size: 32
+
+model:
+  __class__: transformer_models.RobertaQA
+  __by_method__: from_pretrained
+  pretrained_model_name_or_path: ../pretrained/roberta-base/
+  dense_output: True
+
+scheduler:
+  __class__: utils.get_linear_schedule_with_warmup_frac
+  frac_training_steps: 0.1
+
+criterion:
+  __class__: torch.nn.BCEWithLogitsLoss #losses.JaccardApproxLoss
+
+optimizer:
+  lr: 0.00006
+runner:
+  input_target_key: targets
+  output_key: logits
+
+train_params:
+  num_epochs: 5
+
+callbacks:
+  swa:
+    __class__: callbacks.SWACallback
+    swa_start: 0
+    swa_freq: 2
+  criterion:
+    __class__: catalyst.dl.callbacks.CriterionCallback
+    input_key: targets
+    output_key: logits
+  jaccard:
+    __class__: callbacks.JaccardCallback
+    input_key:
+      - orig_tweet
+      - orig_selected
+      - offsets
+    output_key:
+      - logits
+    dense: True
+  scheduler:
+    __class__: catalyst.dl.callbacks.SchedulerCallback
+    mode: batch
+

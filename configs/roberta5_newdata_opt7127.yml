@@ -5,7 +5,7 @@ criterion:
 dataloader:
   batch_size: 32
 dataset:
-  df_path: /ssd2/kirill/projects/tweet-sentiment/data/train_stratified_5folds.csv
+  df_path: ../data/train_stratified_5folds.csv
 model:
   __by_method__: from_pretrained
   __class__: transformer_models.RobertaQA
@@ -14,7 +14,7 @@ model:
   multi_sample_dropout: false
   num_take_layers: 7.0
   pre_head_dropout: 0.49525884002504905
-  pretrained_model_name_or_path: /ssd2/kirill/projects/tweet-sentiment/pretrained/roberta-base
+  pretrained_model_name_or_path: ../pretrained/roberta-base
 optimizer:
   lr: 4.608834020613945e-05
 scheduler:
