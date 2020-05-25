@@ -2,16 +2,12 @@ dataset:
   df_path: ../data/train_stratified_5folds.csv
 
 dataloader:
-  batch_size: 32
+  batch_size: 16
 
 model:
   __class__: transformer_models.RobertaQA
   __by_method__: from_pretrained
   pretrained_model_name_or_path: ../pretrained/roberta-large/
-  p_drophead: 0.1
-
-dataloader:
-  batch_size: 8
 
 scheduler:
   __class__: utils.get_linear_schedule_with_warmup_frac
@@ -20,12 +16,14 @@ scheduler:
 criterion:
   heads_reduction: mean
 
+train_params:
+  num_epochs: 5
+
 callbacks:
   swa:
     __class__: callbacks.SWACallback
     swa_start: 0
     swa_freq: 2
-    num_swap_epochs: 1
   criterion:
     __class__: catalyst.dl.callbacks.CriterionCallback
     input_key:
@@ -42,7 +40,3 @@ callbacks:
   scheduler:
     __class__: catalyst.dl.callbacks.SchedulerCallback
     mode: batch
-
-train_params:
-  num_epochs: 5
-
