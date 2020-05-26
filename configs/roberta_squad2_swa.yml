@@ -1,5 +1,6 @@
 dataset:
   df_path: ../data/train_stratified_5folds.csv
+  do_lower: False
 
 dataloader:
   batch_size: 32
@@ -12,11 +13,13 @@ model:
 
 scheduler:
   __class__: utils.get_linear_schedule_with_warmup_frac
-  frac_training_steps: 0.1
+  frac_training_steps: 0.06
 
 criterion:
   heads_reduction: mean
 
+optimizer:
+  lr: 0.00004
 callbacks:
   swa:
     __class__: callbacks.SWACallback
