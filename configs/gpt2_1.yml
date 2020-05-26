@@ -1,0 +1,29 @@
+dataset:
+  df_path: ../data/train_stratified_5folds.csv
+  preprocess_fn: datasets.gpt2_preprocess
+  do_lower: False
+
+tokenizer:
+  __class__: transformers.GPT2TokenizerFast
+
+dataloader:
+  batch_size: 32
+
+model:
+  __class__: transformer_models.GPT2QA
+  __by_method__: from_pretrained
+  pretrained_model_name_or_path: ../pretrained/gpt2/
+
+scheduler:
+  __class__: utils.get_linear_schedule_with_warmup_frac
+  frac_training_steps: 0.1
+
+criterion:
+  heads_reduction: mean
+
+optimizer:
+  lr: 0.00006
+
+train_params:
+  num_epochs: 5
+

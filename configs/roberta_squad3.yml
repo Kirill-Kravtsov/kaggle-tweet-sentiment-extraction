@@ -43,4 +43,3 @@ callbacks:
 
 train_params:
   num_epochs: 10
-

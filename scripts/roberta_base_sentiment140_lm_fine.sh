@@ -5,6 +5,7 @@ python ../../transformers/examples/language-modeling/run_language_modeling.py \
 	--do_train \
 	--train_data_file=../data/external/sentiment140_lm.txt \
 	--mlm \
-	--overwrite_cache \
+	--block_size=254 \
 	--line_by_line \
-	--overwrite_output_dir
+	--overwrite_output_dir \
+	--fp16

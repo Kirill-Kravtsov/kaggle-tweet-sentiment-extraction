@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from transformers import (BertPreTrainedModel, RobertaModel,
                           RobertaConfig, ROBERTA_PRETRAINED_MODEL_ARCHIVE_MAP)
+from transformers import (GPT2PreTrainedModel, GPT2Model,
+                          GPT2Config)
 from hooks import drophead_hook
 
 
@@ -104,10 +106,8 @@ class RobertaQA(BertPreTrainedModel):
             return start_logits, end_logits
 
 
-class JaccardRobertaQA(BertPreTrainedModel):
-    config_class = RobertaConfig
-    pretrained_model_archive_map = ROBERTA_PRETRAINED_MODEL_ARCHIVE_MAP
-    base_model_prefix = "roberta"
+class GPT2QA(GPT2PreTrainedModel):
+    base_model_prefix = "gpt2"
 
     def __init__(
         self,
@@ -117,33 +117,86 @@ class JaccardRobertaQA(BertPreTrainedModel):
         p_drophead=None,
         num_take_layers=2,
         freeze_embeds=False,
-        layers_agg="concat"
+        layers_agg="concat",
+        multi_sample_dropout=False,
+        dense_output=False
     ):
-        super().__init__(config, dropout, pre_head_dropout, p_drophead,
-                         max_num_take_layers, freeze_embeds, layers_agg)
-        self.lstm = nn.LSTM(
-            input_size=4,
-            hidden_dim=64,
-            num_layers=2,
-            batch_first=True,
-            bidirectional=True
+        assert layers_agg in ["concat", "sum"]
+        config.attn_pdrop = dropout
+        super().__init__(config)
+        self.layers_agg = layers_agg
+        self.num_take_layers = int(num_take_layers)  # int because of hyperopt
+        self.multi_sample_dropout = multi_sample_dropout
+        self.dense_output = dense_output
+        config.output_hidden_states = True
+
+        self.gpt2 = GPT2Model(config)
+        self.dropout = nn.Dropout(pre_head_dropout)
+        if multi_sample_dropout:
+            self.final_dropout = nn.Dropout(0.5)
+
+        lin_input_size = config.n_embd
+        if layers_agg == "concat":
+            lin_input_size *= self.num_take_layers
+        else:
+            self.hid_att = nn.Linear(config.n_embd, 1)
+
+        if dense_output:
+            self.l0 = nn.Linear(lin_input_size, 1)
+        else:
+            self.l0 = nn.Linear(lin_input_size, 2)
+        self.init_weights()
+        torch.nn.init.normal_(self.l0.weight, std=0.02)
+
+        #if p_drophead:
+        #    for bert_layer in self.roberta.encoder.layer:
+        #        bert_layer.attention.self.p_drophead = p_drophead
+        #        bert_layer.attention.self.register_forward_hook(drophead_hook)
+
+        if freeze_embeds:
+            for name, param in self.base_model.named_parameters():
+                if "embedding" in name:
+                    param.requires_grad = False
+        
+    def forward(self, ids, mask, token_type_ids):
+        full_len = ids.shape[1]
+        max_len = max(torch.sum((torch.sum((mask != 0), dim=0) > 0)).item(), 1)
+
+        _, _, out = self.gpt2(
+            ids[:, :max_len],
+            attention_mask=mask[:, :max_len],
+            token_type_ids=token_type_ids[:, :max_len]
         )
-        self.lstm_lin = nn.Linear(64*2, 1)
+
+        #out = torch.cat((out[-1], out[-2]), dim=-1)
+        out = [out[-(i+1)] for i in range(self.num_take_layers)]
+        if self.layers_agg == "concat":
+            out = torch.cat(out, dim=-1)
+        else:
+            out = torch.stack(out, dim=2)
+            scores = F.softmax(self.hid_att(out).squeeze(-1), dim=2)
+            out = (out * scores.unsqueeze(-1)).sum(dim=2)
 
 
-    def forward(self, ids, mask, token_type_ids,
-                start_positions, end_positions, new_word_flags):
-        start_logits, end_logits = super().forward(ids, mask, token_type_ids)
+        if self.multi_sample_dropout:
+            logits = torch.mean(
+                torch.stack(
+                    [self.l0(self.final_dropout(out)) for _ in range(5)],
+                    dim=0,
+                ),
+                dim=0,
+            )
+        else:
+            out = self.dropout(out)
+            logits = self.l0(out)
+        
+        pad_len = full_len - max_len
+        logits = F.pad(logits, (0, 0, 0, pad_len), value=0)
 
-        selected_mask = torch.zeros_like(ids)
-        selected_mask.scatter_(1, start_positions.view(-1,1), value=1)
-        selected_mask.scatter_(1, end_positions.view(-1,1), value=1)
-        selected_mask = torch.cumsum(selected_mask, dim=1)
-        selected_mask[selected_mask==2] = 0
-        selected_mask.scatter_(1, end_positions.view(-1,1), value=1)
-        selected_mask[start_positions > end_positions] = 0
-
-        lstm_inp = torch.stack((start_logits, end_logits,
-                                new_word_flags, selected_mask), dim=-1)
-        lstm_out, _ = self.lstm(lstm_inp)
-        jaccard_pred = torch.sigmoid(self.lstm_lin)
+        if self.dense_output:
+            return logits.squeeze(-1)
+        else:
+            start_logits, end_logits = logits.split(1, dim=-1)
+            start_logits = start_logits.squeeze(-1)
+            end_logits = end_logits.squeeze(-1)
+            return start_logits, end_logits

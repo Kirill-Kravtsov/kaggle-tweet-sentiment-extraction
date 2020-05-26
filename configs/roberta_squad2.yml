@@ -1,5 +1,6 @@
 dataset:
   df_path: ../data/train_stratified_5folds.csv
+  do_lower: False
 
 dataloader:
   batch_size: 32
