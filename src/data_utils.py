@@ -21,7 +21,7 @@ def token2word_prob(tweet, token_probs, offsets, agg="max"):
     """
     Note: offest[1] from tokenizers is exclusive
     """
-    words_offsets = get_word_offsets(tweet)
+    word_offsets = get_word_offsets(tweet)
     word_probs = []
 
     for word, word_from, word_to in word_offsets:

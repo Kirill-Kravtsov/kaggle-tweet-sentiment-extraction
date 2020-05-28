@@ -1,13 +1,34 @@
 import re
+import random
 import pydoc
+import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import Dataset
 from data_utils import find_substr
 
 
-def roberta_preprocess(tweet, selected_text, sentiment, tokenizer, max_len,
-                       do_lower=True):
+def swap_words(text):
+    words = text.split()
+    if len(words)<=1:
+        return text
+    swap_idx1 = random.randint(0, len(words)-2)
+    swap_idx2 = swap_idx1 + 1  # swap with the next one
+    tmp = words[swap_idx1]
+    words[swap_idx1] = words[swap_idx2]
+    words[swap_idx2] = tmp
+    return " ".join(words)
+
+
+def get_new_words_vect(offsets, tweet):
+    new_words = []
+    for off_from, off_to in offsets:
+        new_words.append(0 if off_from == 0 else tweet[off_from-1] == " ")
+    return new_words
+
+
+def roberta_preprocess(tweet, selected_text, sentiment, tweet_id, tokenizer, max_len,
+                       do_lower=True, p_swap_words=0, is_valid_df=False):
     tweet = " ".join(str(tweet).strip().split())
     selected_text = " ".join(str(selected_text).strip().split())
 
@@ -19,6 +40,9 @@ def roberta_preprocess(tweet, selected_text, sentiment, tokenizer, max_len,
     if idx0 != None and idx1 != None:
         for ct in range(idx0, idx1 + 1):
             char_targets[ct] = 1
+
+    #if (random.random() < p_swap_words) and not is_valid_df:
+    #    tweet = tweet[:idx1+1] + swap_words(tweet[idx1+1:])
     
     if do_lower:
         tok_tweet = tokenizer.encode_plus(tweet.lower(), return_offsets_mapping=True, add_special_tokens=False)
@@ -48,14 +72,23 @@ def roberta_preprocess(tweet, selected_text, sentiment, tokenizer, max_len,
     targets_start += 4
     targets_end += 4
 
+    new_words = get_new_words_vect(tweet_offsets, tweet)
+    bin_sentiment = np.zeros(len(input_ids))
+    bin_sentiment[targets_start:targets_end+1] = 1
+    bin_sentiment_words = bin_sentiment * np.array(new_words)
+
     padding_length = max_len - len(input_ids)
     if padding_length > 0:
         input_ids = input_ids + ([1] * padding_length)
         mask = mask + ([0] * padding_length)
         token_type_ids = token_type_ids + ([0] * padding_length)
         tweet_offsets = tweet_offsets + ([(0, 0)] * padding_length)
+        new_words = new_words + ([0] * padding_length)
+        bin_sentiment = bin_sentiment.tolist() + ([0] * padding_length)
+        bin_sentiment_words  = bin_sentiment_words.tolist() + ([0] * padding_length)
     
     return {
+        'tweet_id': tweet_id,
         'ids': torch.tensor(input_ids, dtype=torch.long),
         'mask': torch.tensor(mask, dtype=torch.long),
         'token_type_ids': torch.tensor(token_type_ids, dtype=torch.long),
@@ -64,7 +97,10 @@ def roberta_preprocess(tweet, selected_text, sentiment, tokenizer, max_len,
         'orig_tweet': tweet,
         'orig_selected': selected_text,
         'sentiment': sentiment,
-        'offsets': torch.tensor(tweet_offsets, dtype=torch.long)
+        'offsets': torch.tensor(tweet_offsets, dtype=torch.long),
+        'new_words': torch.tensor(new_words, dtype=torch.float),
+        'bin_sentiment': torch.tensor(bin_sentiment, dtype=torch.float),
+        'bin_sentiment_words': torch.tensor(bin_sentiment_words, dtype=torch.float)
     }
 
 
@@ -192,7 +228,7 @@ class TweetDataset(Dataset):
     def __init__(self, df_path, folds, tokenizer,
                  preprocess_fn="datasets.roberta_preprocess",
                  max_len=192, max_num_samples=None,
-                 text_col_name="text", do_lower=True):
+                 text_col_name="text", do_lower=True, **kwargs):
         if isinstance(folds, int):
             folds = [folds]
         df = pd.read_csv(df_path)
@@ -202,20 +238,24 @@ class TweetDataset(Dataset):
         self.tweet = df[text_col_name].values
         self.sentiment = df['sentiment'].values
         self.selected_text = df['selected_text'].values
+        self.tweet_ids = df['textID'].values
         self.fn = pydoc.locate(preprocess_fn)
         self.tokenizer = tokenizer
         self.max_len = max_len
         self.do_lower = do_lower
+        self.kwargs = kwargs
     
     def __len__(self):
         return len(self.tweet)
 
-    def __getitem__(self, item):
+    def __getitem__(self, idx):
         return self.fn(
-            self.tweet[item], 
-            self.selected_text[item], 
-            self.sentiment[item],
+            self.tweet[idx],
+            self.selected_text[idx], 
+            self.sentiment[idx],
+            self.tweet_ids[idx],
             self.tokenizer,
             self.max_len,
-            self.do_lower
+            self.do_lower,
+            **self.kwargs
         )

@@ -1,9 +1,13 @@
+import os
 import re
+import json
 from typing import Dict, Tuple, Union
 from pathlib import Path
+import numpy as np
 from catalyst.core import Callback, MetricCallback, CallbackOrder, utils
 from catalyst.core.callbacks import CheckpointCallback
 from utils import jaccard_func, jaccard_func_dense, CustomSWA
+from data_utils import token2word_prob
 
 
 class JaccardCallback(MetricCallback):
@@ -129,26 +133,62 @@ class FreezeControlCallback(Callback):
 
 
 
-class LogPredsCallback(Callback):
+class LogQAPredsCallback(Callback):
 
-    def __init__(self, output_key=('start_logits', 'end_logits')):
+    def __init__(self):
         super().__init__(order=CallbackOrder.Logging)
-        self.output_key = (output_key) if isinstance(output_key, str) else output_key
+        self.input_keys = [
+            'tweet_id', 'orig_tweet', 'orig_selected',
+            'sentiment', 'start_positions', 'end_positions',
+            'offsets'
+        ]
 
-    def on_epoch_start(self, state):
-        self.epoch_log = {key:{} for key in self.output_key}
+    def on_loader_start(self, state):
+        self.epoch_log = {key:[] for key in self.input_keys + ['start_logits', 'end_logits']}
 
     def on_batch_end(self, state):
         if state.is_valid_loader:
-            for key in self.output_key:
-                batch_pred = state.output[key].detach().cpu().numpy()
-                if state.loader_name not in self.epoch_log[key]:
-                    self.epoch_log[key][state.loader_name] = []
-                self.epoch_log[key][state.loader_name].append(batch_pred)
+            for key in self.input_keys:
+                if key == 'offsets':
+                    batch_values = []
+                    offsets = state.input[key].detach().cpu().numpy()
+                    offsets = np.split(offsets, offsets.shape[0])
+                    for offset in offsets:
+                        batch_values.append(list(zip(*[np.reshape(part, -1).tolist() for part in np.split(offset, 2, axis=-1)])))
+                elif isinstance(state.input[key], list):
+                    batch_values = state.input[key]
+                else:
+                    batch_values = state.input[key].detach().cpu().view(-1).numpy().tolist()
+                self.epoch_log[key].extend(batch_values)
 
-    def on_epoch_end(self, state):
-        for key in self.output_key:
-            self.epoch_log[key][state.loader_name].append(batch_pred)
+            for key in ['start_logits', 'end_logits']:
+                batch_pred = state.output[key].detach().cpu().numpy()
+                batch_pred = [np.reshape(arr, -1).tolist() for arr in np.split(batch_pred, batch_pred.shape[0])]
+                self.epoch_log[key].extend(batch_pred)
+
+    def on_loader_end(self, state):
+        if state.is_valid_loader:
+            self.epoch_log['start_logits_words'] = []
+            self.epoch_log['end_logits_words'] = []
+            for idx in range(len(self.epoch_log['start_logits'])):
+                self.epoch_log['start_logits_words'].append(token2word_prob(
+                    self.epoch_log['orig_tweet'][idx],
+                    self.epoch_log['start_logits'][idx],
+                    self.epoch_log['offsets'][idx]))
+                self.epoch_log['end_logits_words'].append(token2word_prob(
+                    self.epoch_log['orig_tweet'][idx],
+                    self.epoch_log['end_logits'][idx],
+                    self.epoch_log['offsets'][idx]))
+            log = {}
+            log_keys = [i for i in self.input_keys if i!='tweet_id'] + ['start_logits', 'end_logits']
+            for idx in range(len(self.epoch_log['start_logits'])):
+                tweet_id = self.epoch_log['tweet_id'][idx]
+                log[tweet_id] = {}
+                for key in log_keys:
+                    log[tweet_id][key] = self.epoch_log[key][idx]
+            logname = os.path.join(state.logdir, state.loader_name+str(state.epoch)+".json")
+            with open(logname, "w+") as f:
+                json.dump(log, f)
 
 
 class SheduledDropheadCallback(Callback):

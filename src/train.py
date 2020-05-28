@@ -27,7 +27,7 @@ from utils import seed_torch, processify
 TRAINING_DEFAULTS = {
     'main_metric': 'jaccard',
     'num_epochs': 3,
-    'verbose': False,
+    'verbose': True,
     'minimize_metric': False,
     'valid_loader': "valid_swa"
 }
@@ -54,6 +54,9 @@ DEFAULT_CALLBACKS = {
     'checkpoint': {
         '__class__': "callbacks.CustomCheckpointCallback",
         'save_n_best': 10
+    },
+    'logpreds': {
+        '__class__': "callbacks.LogQAPredsCallback"
     }
 }
 
@@ -173,6 +176,7 @@ def run_fold(config, args, train_folds, val_fold):
         default_cls=TweetDataset,
         folds=val_fold,
         tokenizer=tokenizer,
+        is_valid_df=True,
         max_num_samples = 100 if args.debug else None
     )
 
