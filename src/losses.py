@@ -235,4 +235,4 @@ class JaccardNNApproxLoss(_WeightedLoss):
         #print(-torch.mean(batch_jaccard_pred))
 
         default_loss = self.default_loss(start_logits, end_logits, start_positions, end_positions)
-        return 0.8*torch.mean(1 - torch.sigmoid(batch_jaccard_pred)) + 0.8*default_loss
+        return 1.5*torch.mean(1 - torch.sigmoid(batch_jaccard_pred)) + default_loss

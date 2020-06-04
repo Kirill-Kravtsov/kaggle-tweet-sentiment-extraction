@@ -160,8 +160,6 @@ def run_fold(config, args, train_folds, val_fold):
         merges_file=os.path.join(model_path, "merges.txt"),
         add_prefix_space=True
     )
-    special_tokens_dict = {'pad_token': '<PAD>'}
-    num_added_toks = tokenizer.add_special_tokens(special_tokens_dict)
     train_data = create_class_obj(
         config,
         get_by_key='dataset',
@@ -210,7 +208,6 @@ def run_fold(config, args, train_folds, val_fold):
     )
 
     model = create_class_obj(config['model']).cuda()
-    model.resize_token_embeddings(len(tokenizer))
 
     runner = create_class_obj(
         config,

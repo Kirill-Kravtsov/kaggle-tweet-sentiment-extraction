@@ -106,6 +106,51 @@ class RobertaQA(BertPreTrainedModel):
             return start_logits, end_logits
 
 
+class RobertaCNNQA(BertPreTrainedModel):
+    config_class = RobertaConfig
+    pretrained_model_archive_map = ROBERTA_PRETRAINED_MODEL_ARCHIVE_MAP
+    base_model_prefix = "roberta"
+
+    def __init__(
+        self,
+        config,
+        dropout=0.1,
+        pre_head_dropout=0.1
+    ):
+        config.attention_probs_dropout_prob = dropout
+        super().__init__(config)
+        config.output_hidden_states = True
+
+        self.roberta = RobertaModel(config)
+        self.dropout = nn.Dropout(pre_head_dropout)
+        
+        self.conv1_s = nn.Conv2d(1, 32, (17, config.hidden_size), padding=(8, 0))
+        self.conv2_s = nn.Conv2d(32, 1, (9, 1), padding=(4, 0))
+        self.conv1_e = nn.Conv2d(1, 32, (17, config.hidden_size), padding=(8, 0))
+        self.conv2_e = nn.Conv2d(32, 1, (9, 1), padding=(4, 0))
+        self.init_weights()
+
+    def forward(self, ids, mask, token_type_ids):
+        full_len = ids.shape[1]
+        max_len = max(torch.sum((torch.sum((mask != 0), dim=0) > 0)).item(), 1)
+
+        _, _, out = self.roberta(
+            ids[:, :max_len],
+            attention_mask=mask[:, :max_len],
+            token_type_ids=token_type_ids[:, :max_len]
+        )
+
+        x = out[-1].unsqueeze(1)
+        start_logits = F.leaky_relu(self.conv1_s(x))
+        start_logits = self.conv2_s(start_logits).squeeze(1).squeeze(-1)
+        end_logits = F.leaky_relu(self.conv1_e(x))
+        end_logits = self.conv2_e(end_logits).squeeze(1).squeeze(-1)
+
+        pad_len = full_len - max_len
+        start_logits = F.pad(start_logits, (0, pad_len), value=0)
+        end_logits = F.pad(end_logits, (0, pad_len), value=0)
+        return start_logits, end_logits
+
 class GPT2QA(GPT2PreTrainedModel):
     base_model_prefix = "gpt2"
 

@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 from catalyst.core import Callback, MetricCallback, CallbackOrder, utils
 from catalyst.core.callbacks import CheckpointCallback
-from utils import jaccard_func, jaccard_func_dense, CustomSWA
+from utils import jaccard_func, CustomSWA
 from data_utils import token2word_prob
 
 
@@ -14,7 +14,7 @@ class JaccardCallback(MetricCallback):
 
     def __init__(
         self,
-        input_key=['start_positions', 'end_positions', 'orig_tweet', 'orig_selected', 'offsets'],
+        input_key=['orig_tweet', 'orig_selected', 'offsets'],
         output_key=['start_logits', 'end_logits'],
         prefix="jaccard",
         activation=None,
@@ -68,8 +68,11 @@ class SWACallback(Callback):
         """
         if state.loader_name == "valid_swa":
             state.optimizer.swap_swa_sgd()
+        elif (state.loader_name == "train") and (state.epoch > self.num_swap_epochs+1):
+            state.optimizer.swap_swa_sgd()
 
     def on_epoch_end(self, state):
+        #print("swa, epoch_end")
         if self.swap_best:
             train_jac = state.epoch_metrics['valid_jaccard']
             swa_jac = state.epoch_metrics['valid_swa_jaccard']
@@ -80,11 +83,13 @@ class SWACallback(Callback):
                 state.optimizer.update_model_weights()
                 state.epoch_metrics['valid_swa_loss'] = state.epoch_metrics['valid_loss'] 
                 state.epoch_metrics['valid_swa_jaccard'] = state.epoch_metrics['valid_jaccard'] 
-            elif state.epoch < state.num_epochs:
-                state.optimizer.swap_swa_sgd()
+            else:
+                state.optimizer.update_swa_weights()
+            #elif state.epoch < state.num_epochs:
+            #    state.optimizer.swap_swa_sgd()
 
-        elif state.epoch > self.num_swap_epochs:
-            state.optimizer.swap_swa_sgd()
+        #elif state.epoch > self.num_swap_epochs:
+        #    state.optimizer.swap_swa_sgd()
 
 
 
@@ -245,6 +250,7 @@ class CustomCheckpointCallback(CheckpointCallback):
         is_best: bool,
         is_last: bool,
     ) -> Tuple[str, str]:
+        #print("saving checkpoint")
         if self.save_full:
             full_checkpoint_path = utils.save_checkpoint(
                 logdir=Path(f"{logdir}/checkpoints/"),
