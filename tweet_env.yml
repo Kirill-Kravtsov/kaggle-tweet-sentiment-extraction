@@ -10,8 +10,8 @@ dependencies:
   - backcall=0.1.0=py37_0
   - blas=1.0=mkl
   - bleach=3.1.4=py_0
-  - ca-certificates=2020.1.1=0
-  - certifi=2020.4.5.1=py37_0
+  - ca-certificates=2020.6.24=0
+  - certifi=2020.6.20=py37_0
   - cffi=1.14.0=py37h2e261b9_0
   - chardet=3.0.4=py37_1003
   - conda=4.8.3=py37_0
@@ -40,6 +40,7 @@ dependencies:
   - ipywidgets=7.5.1=py_0
   - jedi=0.17.0=py37_0
   - jinja2=2.11.2=py_0
+  - joblib=0.16.0=py_0
   - jpeg=9b=h024ee3a_2
   - json5=0.9.4=py_0
   - jsonschema=3.2.0=py37_0
@@ -74,6 +75,7 @@ dependencies:
   - nbformat=5.0.6=py_0
   - ncurses=6.2=he6710b0_1
   - ninja=1.9.0=py37hfd86e86_0
+  - nltk=3.5=py_0
   - nodejs=10.13.0=he6710b0_0
   - notebook=6.0.3=py37_0
   - numpy=1.18.1=py37h4f9e942_0
