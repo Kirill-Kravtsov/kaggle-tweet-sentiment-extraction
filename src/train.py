@@ -84,7 +84,6 @@ def parse_args():
 
     if args.model_name is None:
         args.model_name = os.path.splitext(os.path.basename(args.config))[0]
-    #args.model_name += '_cv%i_fold%i'%(args.num_folds, args.val_fold)
     if args.debug:
         args.model_name += "_debug"
     if args.ignore_fold is not None:
@@ -94,7 +93,7 @@ def parse_args():
 
 
 def create_class_obj(dct, get_by_key=None, default_cls=None,
-                     overwite_config = False, **kwargs):
+                     overwite_config=False, **kwargs):
     # get class dct if needed to get by key
     dct = deepcopy(dct)
     if get_by_key is not None:
@@ -149,7 +148,7 @@ def clear_checkpoints(logdir, best_epoch):
             os.remove(path)
 
 
-@processify  # because of some gpu memory leak
+@processify
 def run_fold(config, args, train_folds, val_fold):
     print(f"Val fold: {val_fold}, train_folds: {train_folds}")
     model_path = config['model']['pretrained_model_name_or_path']
