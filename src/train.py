@@ -22,6 +22,7 @@ from losses import QACrossEntropyLoss
 from collators import DynamicPaddingCollator
 from callbacks import JaccardCallback, SWACallback, SheduledDropheadCallback
 from utils import seed_torch, processify
+from drophead import set_drophead
 
 
 TRAINING_DEFAULTS = {
@@ -76,6 +77,7 @@ def parse_args():
     parser.add_argument('--val-fold', type=int, default=None)
     parser.add_argument('--ignore-fold', type=int, default=None)
     parser.add_argument('--logdir', type=str, default="../logs")
+    parser.add_argument('--seed', type=int, default=0)
 
     args = parser.parse_args()
 
@@ -156,7 +158,7 @@ def run_fold(config, args, train_folds, val_fold):
         config,
         get_by_key='tokenizer',
         default_cls=RobertaTokenizerFast,
-        vocab_file=os.path.join(model_path, "vocab.json"), 
+        vocab_file=os.path.join(model_path, "vocab.json"),
         merges_file=os.path.join(model_path, "merges.txt"),
         add_prefix_space=True
     )
@@ -208,6 +210,7 @@ def run_fold(config, args, train_folds, val_fold):
     )
 
     model = create_class_obj(config['model']).cuda()
+    set_drophead(model)
 
     runner = create_class_obj(
         config,
@@ -273,8 +276,8 @@ def run_fold(config, args, train_folds, val_fold):
 
 
 def main():
-    seed_torch()
     args = parse_args()
+    seed_torch(args.seed)
     config = get_config(args.config)
     folds = list(set(pd.read_csv(config['dataset']['df_path'])['fold']))
     if args.ignore_fold is not None:

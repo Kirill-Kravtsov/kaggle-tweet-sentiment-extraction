@@ -9,6 +9,44 @@ from data_utils import find_substr
 from nltk.tokenize.casual import WORD_RE, HANG_RE, _replace_html_entities
 
 
+class TweetDataset(Dataset):
+
+    def __init__(self, df_path, folds, tokenizer,
+                 preprocess_fn="datasets.roberta_preprocess",
+                 max_len=192, max_num_samples=None,
+                 text_col_name="text", do_lower=True, **kwargs):
+        if isinstance(folds, int):
+            folds = [folds]
+        df = pd.read_csv(df_path)
+        df = df[df['fold'].isin(folds)]
+        if max_num_samples is not None:
+            df = df.iloc[:max_num_samples]
+        self.tweet = df[text_col_name].values
+        self.sentiment = df['sentiment'].values
+        self.selected_text = df['selected_text'].values
+        self.tweet_ids = df['textID'].values
+        self.fn = pydoc.locate(preprocess_fn)
+        self.tokenizer = tokenizer
+        self.max_len = max_len
+        self.do_lower = do_lower
+        self.kwargs = kwargs
+
+    def __len__(self):
+        return len(self.tweet)
+
+    def __getitem__(self, idx):
+        return self.fn(
+            self.tweet[idx],
+            self.selected_text[idx],
+            self.sentiment[idx],
+            self.tweet_ids[idx],
+            self.tokenizer,
+            self.max_len,
+            self.do_lower,
+            **self.kwargs
+        )
+
+
 def swap_words(text):
     words = text.split()
     if len(words)<=1:
@@ -46,19 +84,18 @@ def roberta_preprocess(tweet, selected_text, sentiment, tweet_id, tokenizer, max
         tweet = tweet[:idx1+1] + swap_words(tweet[idx1+1:])
     #if (not is_valid_df) and (random.random() < p_swap_words):
     #    tweet = swap_words(tweet[:idx0]) + tweet[idx0:]
-    
+
     if do_lower:
         tok_tweet = tokenizer.encode_plus(tweet.lower(), return_offsets_mapping=True, add_special_tokens=False)
     else:
         tok_tweet = tokenizer.encode_plus(tweet, return_offsets_mapping=True, add_special_tokens=False)
     input_ids_orig = tok_tweet['input_ids']
     tweet_offsets = tok_tweet['offset_mapping']
-    
     target_idx = []
     for j, (offset1, offset2) in enumerate(tweet_offsets):
         if sum(char_targets[offset1: offset2]) > 0:
             target_idx.append(j)
-    
+
     targets_start = target_idx[0]
     targets_end = target_idx[-1]
 
@@ -67,7 +104,7 @@ def roberta_preprocess(tweet, selected_text, sentiment, tweet_id, tokenizer, max
         'negative': 2430,
         'neutral': 7974
     }
-    
+
     input_ids = [0] + [sentiment_id[sentiment]] + [2] + [2] + input_ids_orig + [2]
     token_type_ids = [0, 0, 0, 0] + [0] * (len(input_ids_orig) + 1)
     mask = [1] * len(token_type_ids)
@@ -89,7 +126,7 @@ def roberta_preprocess(tweet, selected_text, sentiment, tweet_id, tokenizer, max
         new_words = new_words + ([0] * padding_length)
         bin_sentiment = bin_sentiment.tolist() + ([0] * padding_length)
         bin_sentiment_words  = bin_sentiment_words.tolist() + ([0] * padding_length)
-    
+
     return {
         'tweet_id': tweet_id,
         'ids': torch.tensor(input_ids, dtype=torch.long),
@@ -120,19 +157,19 @@ def gpt2_preprocess(tweet, selected_text, sentiment, tokenizer, max_len,
     if idx0 != None and idx1 != None:
         for ct in range(idx0, idx1 + 1):
             char_targets[ct] = 1
-    
+
     if do_lower:
         tok_tweet = tokenizer.encode_plus(tweet.lower(), return_offsets_mapping=True, add_special_tokens=False)
     else:
         tok_tweet = tokenizer.encode_plus(tweet, return_offsets_mapping=True, add_special_tokens=False)
     input_ids_orig = tok_tweet['input_ids']
     tweet_offsets = tok_tweet['offset_mapping']
-    
+
     target_idx = []
     for j, (offset1, offset2) in enumerate(tweet_offsets):
         if sum(char_targets[offset1: offset2]) > 0:
             target_idx.append(j)
-    
+
     targets_start = target_idx[0]
     targets_end = target_idx[-1]
 
@@ -141,7 +178,7 @@ def gpt2_preprocess(tweet, selected_text, sentiment, tokenizer, max_len,
         'negative': 2430,
         'neutral': 7974
     }
-    
+
     input_ids = [0] + [sentiment_id[sentiment]] + [2] + [2] + input_ids_orig + [2]
     token_type_ids = [0, 0, 0, 0] + [0] * (len(input_ids_orig) + 1)
     mask = [1] * len(token_type_ids)
@@ -156,7 +193,7 @@ def gpt2_preprocess(tweet, selected_text, sentiment, tokenizer, max_len,
         mask = mask + ([0] * padding_length)
         token_type_ids = token_type_ids + ([0] * padding_length)
         tweet_offsets = tweet_offsets + ([(0, 0)] * padding_length)
-    
+
     return {
         'ids': torch.tensor(input_ids, dtype=torch.long),
         'mask': torch.tensor(mask, dtype=torch.long),
@@ -170,61 +207,6 @@ def gpt2_preprocess(tweet, selected_text, sentiment, tokenizer, max_len,
     }
 
 
-def roberta_preprocess2(tweet, selected_text, sentiment, tokenizer, max_len):
-    tweet = " ".join(str(tweet).strip().split())
-    selected_text = " ".join(str(selected_text).strip().split())
-
-    len_st = len(selected_text)
-    idx0, idx1 = find_substr(tweet, selected_text)
-    assert selected_text == tweet[idx0:idx1+1]
-
-    char_targets = [0] * len(tweet)
-    if idx0 != None and idx1 != None:
-        for ct in range(idx0, idx1 + 1):
-            char_targets[ct] = 1
-    
-    tok_tweet = tokenizer.encode_plus(tweet.lower(), return_offsets_mapping=True, add_special_tokens=False)
-    input_ids_orig = tok_tweet['input_ids']
-    tweet_offsets = tok_tweet['offset_mapping']
-    
-    target = []
-    for j, (offset1, offset2) in enumerate(tweet_offsets):
-        if sum(char_targets[offset1: offset2]) > 0:
-            target.append(1)
-        else:
-            target.append(0)
-    
-    sentiment_id = {
-        'positive': 1313,
-        'negative': 2430,
-        'neutral': 7974
-    }
-    
-    input_ids = [0] + [sentiment_id[sentiment]] + [2] + [2] + input_ids_orig + [2]
-    token_type_ids = [0, 0, 0, 0] + [0] * (len(input_ids_orig) + 1)
-    mask = [1] * len(token_type_ids)
-    tweet_offsets = [(0, 0)] * 4 + tweet_offsets + [(0, 0)]
-    target = [0] * 4 + target + [0]
-
-    padding_length = max_len - len(input_ids)
-    if padding_length > 0:
-        input_ids = input_ids + ([1] * padding_length)
-        mask = mask + ([0] * padding_length)
-        token_type_ids = token_type_ids + ([0] * padding_length)
-        tweet_offsets = tweet_offsets + ([(0, 0)] * padding_length)
-        target = target + ([0] * padding_length)
-    
-    return {
-        'ids': torch.tensor(input_ids, dtype=torch.long),
-        'mask': torch.tensor(mask, dtype=torch.long),
-        'token_type_ids': torch.tensor(token_type_ids, dtype=torch.long),
-        'targets': torch.tensor(target, dtype=torch.float),
-        'orig_tweet': tweet,
-        'orig_selected': selected_text,
-        'sentiment': sentiment,
-        'offsets': torch.tensor(tweet_offsets, dtype=torch.long)
-    }
-
 
 def custom_tweet_tokenize(text):
     return WORD_RE.findall(text)
@@ -232,29 +214,26 @@ def custom_tweet_tokenize(text):
 
 def normalize_token(token):
     return token
-    
-    
+
+
 def normalize_space_text(text):
     """Jaccard-safe whitespace normalization"""
     return " ".join(text.strip().split())
-    
+
 
 def process_tweet(tweet, selected_text):
     """
     Perform normalization and create mapping from
     processed to original
     """
-    #tokenizer = TweetTokenizer()
-    #tokenized = tokenizer.tokenize(tweet)
     tokenized = custom_tweet_tokenize(tweet)
-    #selected_text = " ".join(tokenizer.tokenize(selected_text))
     selected_text = " ".join(map(normalize_token, custom_tweet_tokenize(selected_text)))
 
     idx_orig = 0
     idx_processed = 1  # because of leading space
     processed2orig_idx = {}
     tokenized_normalized = []
-    
+
     for token in tokenized:
         # find current token
         idx_orig_from = tweet.find(token, idx_orig)
@@ -262,7 +241,7 @@ def process_tweet(tweet, selected_text):
         # here could be some token transformation
         token = normalize_token(token)
         tokenized_normalized.append(token)
-        
+
         idx_processed_from = idx_processed
         idx_processed_to = idx_processed_from + len(token) - 1  # inclusive
 
@@ -274,21 +253,20 @@ def process_tweet(tweet, selected_text):
         for map_idx_processed, map_idx_orig in zip(range(idx_processed_from, idx_processed_to+1),
                                                    range(idx_orig_from, idx_orig_to+1)):
             processed2orig_idx[map_idx_processed] = map_idx_orig
-        
+
         # if word's length was changed during normalization
         #   match at least ending indexes
         processed2orig_idx[idx_processed_to] = idx_orig_to
-            
+
     tweet = " " + " ".join(tokenized_normalized)
     return tweet, selected_text, processed2orig_idx
 
 
 
 def bertweet_preprocess(tweet, selected_text, sentiment, tweet_id, tokenizer, max_len, do_lower=True, is_valid_df=False):
-    
     tweet = normalize_space_text(str(tweet))
     selected_text = normalize_space_text(str(selected_text))
-    
+
     tweet_norm, selected_norm, norm2orig = process_tweet(tweet, selected_text)
     len_st = len(selected_norm)
 
@@ -310,7 +288,7 @@ def bertweet_preprocess(tweet, selected_text, sentiment, tweet_id, tokenizer, ma
         else:
             offsets.append((idx, idx+len(w)))
             idx += len(w)
-            
+
     input_ids_orig = tok_tweet
     tweet_offsets = offsets
 
@@ -331,9 +309,7 @@ def bertweet_preprocess(tweet, selected_text, sentiment, tweet_id, tokenizer, ma
         off_from_fixed = norm2orig[off_from]
         off_to_fixed = norm2orig[off_to-1] + 1
         fixed_offsets.append((off_from_fixed, off_to_fixed))
-        #assert tweet[off_from_fixed:off_to_fixed] == tweet_norm[off_from:off_to]
-    
-    #print(targets_start,targets_end)    
+
     sentiment_id = {
         'positive': 1809,
         'negative': 3392,
@@ -353,7 +329,7 @@ def bertweet_preprocess(tweet, selected_text, sentiment, tweet_id, tokenizer, ma
         mask = mask + ([0] * padding_length)
         token_type_ids = token_type_ids + ([0] * padding_length)
         fixed_offsets = fixed_offsets + ([(0, 0)] * padding_length)
-    
+
     return {
         'tweet_id': tweet_id,
         'ids': torch.tensor(input_ids, dtype=torch.long),
@@ -366,41 +342,3 @@ def bertweet_preprocess(tweet, selected_text, sentiment, tweet_id, tokenizer, ma
         'sentiment': sentiment,
         'offsets': torch.tensor(fixed_offsets, dtype=torch.long)
     }
-
-
-class TweetDataset(Dataset):
-
-    def __init__(self, df_path, folds, tokenizer,
-                 preprocess_fn="datasets.roberta_preprocess",
-                 max_len=192, max_num_samples=None,
-                 text_col_name="text", do_lower=True, **kwargs):
-        if isinstance(folds, int):
-            folds = [folds]
-        df = pd.read_csv(df_path)
-        df = df[df['fold'].isin(folds)]
-        if max_num_samples is not None:
-            df = df.iloc[:max_num_samples]
-        self.tweet = df[text_col_name].values
-        self.sentiment = df['sentiment'].values
-        self.selected_text = df['selected_text'].values
-        self.tweet_ids = df['textID'].values
-        self.fn = pydoc.locate(preprocess_fn)
-        self.tokenizer = tokenizer
-        self.max_len = max_len
-        self.do_lower = do_lower
-        self.kwargs = kwargs
-    
-    def __len__(self):
-        return len(self.tweet)
-
-    def __getitem__(self, idx):
-        return self.fn(
-            self.tweet[idx],
-            self.selected_text[idx], 
-            self.sentiment[idx],
-            self.tweet_ids[idx],
-            self.tokenizer,
-            self.max_len,
-            self.do_lower,
-            **self.kwargs
-        )

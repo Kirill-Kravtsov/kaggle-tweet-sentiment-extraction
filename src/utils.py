@@ -19,62 +19,23 @@ def seed_torch(seed=0):
     torch.backends.cudnn.deterministic = True
 
 
-def jaccard_func_dense(
-    logits,
-    orig_tweet,
-    orig_selected,
-    offsets
-):
-    pred_masks = (logits.detach() > 0.6).long().cpu().numpy()
-    jaccards = []
-
-    if isinstance(offsets, torch.Tensor):
-        offsets = offsets.cpu().numpy()
-    else:
-        offsets = np.array(offsets)
-
-    for pred_mask, offset, tweet, selected in zip(
-        pred_masks,
-        offsets,
-        orig_tweet,
-        orig_selected
-    ):
-        if pred_mask.sum() == 0:
-            str_pred = tweet
-        else:
-            first_token_idx = np.argmax(pred_mask > 0)
-            last_token_idx = pred_mask.shape[0] - np.argmax(pred_mask[::-1] > 0) - 1
-            str_pred = tweet[offset[first_token_idx][0]:offset[last_token_idx][1]]
-
-            str_pred = str_pred.replace('!!!!', '!') if len(str_pred.split())==1 else str_pred
-            str_pred = str_pred.replace('..', '.') if len(str_pred.split())==1 else str_pred
-            str_pred = str_pred.replace('...', '.') if len(str_pred.split())==1 else str_pred
-
-        a = set(selected.lower().split())
-        b = set(str_pred.lower().split())
-        c = a.intersection(b)
-        jaccards.append(float(len(c)) / (len(a) + len(b) - len(c)))
-    return np.average(jaccards)
-
-
 def jaccard_func(
-    start_positions,
-    end_positions,
-    start_logits, 
+    start_logits,
     end_logits,
     orig_tweet,
     orig_selected,
-    offsets
+    offsets,
+    reduction=True
 ):
-    start_pred_batch = torch.argmax(start_logits, dim=1)
-    end_pred_batch = torch.argmax(end_logits, dim=1)
+    start_pred_batch = torch.argmax(start_logits.detach(), dim=1)
+    end_pred_batch = torch.argmax(end_logits.detach(), dim=1)
     jaccards = []
 
     if isinstance(offsets, torch.Tensor):
         offsets = offsets.cpu().numpy()
     else:
         offsets = np.array(offsets)
-    
+
     for start_pred, end_pred, offset, tweet, selected in zip(
         start_pred_batch.cpu().numpy(),
         end_pred_batch.cpu().numpy(),
@@ -92,11 +53,14 @@ def jaccard_func(
             str_pred = str_pred.replace('..', '.') if len(str_pred.split())==1 else str_pred
             str_pred = str_pred.replace('...', '.') if len(str_pred.split())==1 else str_pred
 
-            a = set(selected.lower().split()) 
+            a = set(selected.lower().split())
             b = set(str_pred.lower().split())
             c = a.intersection(b)
             jaccards.append(float(len(c)) / (len(a) + len(b) - len(c)))
-    return np.average(jaccards)
+    if reduction:
+        return np.average(jaccards)
+    else:
+        return np.array(jaccards)
 
 
 def get_linear_schedule_with_warmup_frac(
@@ -166,18 +130,12 @@ def processify(func):
     '''
 
     def process_func(q, *args, **kwargs):
-        #try:
-        #    ret = func(*args, **kwargs)
-        ret = func(*args, **kwargs)
-        #except Exception:
-        #    ex_type, ex_value, tb = sys.exc_info()
-        #    error = ex_type, ex_value, ''.join(traceback.format_tb(tb))
-        #    ret = None
-        #else:
-        #    error = None
-
-        #q.put((ret, error))
-        q.put(ret)
+        try:
+            ret = func(*args, **kwargs)
+        except Exception as error:
+            q.put((None, error))
+        else:
+            q.put((ret, None))
 
     # register original function with different name
     # in sys.modules so it is pickable
@@ -189,14 +147,11 @@ def processify(func):
         q = Queue()
         p = Process(target=process_func, args=[q] + list(args), kwargs=kwargs)
         p.start()
-        ret = q.get()
+        ret, error = q.get()
         p.join()
 
-        #if error:
-            #ex_type, ex_value, tb_str = error
-            #message = '%s (in subprocess)\n%s' % (ex_value.message, tb_str)
-            #print(error)
-            #raise error
+        if error:
+            raise error
 
         return ret
     return wrapper

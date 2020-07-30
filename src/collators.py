@@ -3,7 +3,6 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data._utils.collate import default_collate
 
-
 PAD_ELEMS = {
     'ids': 1,
     'mask': 0,

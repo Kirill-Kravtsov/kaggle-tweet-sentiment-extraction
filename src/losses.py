@@ -87,13 +87,13 @@ class SoftCrossEntropyLoss(_WeightedLoss):
 
     def forward(self, start_logits, end_logits, start_positions, end_positions):
         loss_fct = nn.CrossEntropyLoss(reduce='none') # do reduction later
-        
+
         start_pos = self._pos_weight(start_logits, start_positions, 1, 1)
         end_pos = self._pos_weight(end_logits, end_positions, 1, 1)
 
         start_loss = loss_fct(start_logits, start_positions) * start_pos
         end_loss = loss_fct(end_logits, end_positions) * end_pos
-        
+
         start_loss = torch.mean(start_loss)
         end_loss = torch.mean(end_loss)
         total_loss = start_loss + end_loss
@@ -101,58 +101,6 @@ class SoftCrossEntropyLoss(_WeightedLoss):
         if self.heads_reduction == 'mean':
             total_loss = (start_loss + end_loss)/2
         return total_loss
-
-
-class JaccardApproxLoss(_WeightedLoss):
-
-    def __init__(self, weight=None, reduction='mean'):
-        super().__init__(weight=weight, reduction=reduction)
-
-    def forward(self, logits, targets):
-        #t = torch.Tensor([0.5]).to(logits.device)
-        #logits = (logits >= t).long().squeeze(-1)
-
-        #logits = torch.relu(torch.sign(logits)).squeeze(-1)
-        #print(pred_mask.requires_grad)
-        #print(pred_mask.shape, targets.shape)
-        logits = logits.squeeze(-1)
-
-        bce = torch.nn.BCEWithLogitsLoss()(logits, targets.float())
-
-        logits = torch.sigmoid(logits)
-        intersection = logits * targets
-        num = intersection.sum(dim=1)
-        denum = targets.sum(dim=1) + logits.sum(dim=1) - num
-        jaccard = (-num / denum).float().mean() * 10
-
-        return (jaccard + bce)/2
- 
-"""
-class AggregatedLoss(nn.Module)
-    __constants__ = ['reduction']
-
-    def __init__(self, loss, size_average=None, reduce=None,
-                 reduction='mean', heads_reduction='mean'):
-        assert heads_reduction in ['mean', 'sum']
-        super().__init__(size_average, reduce, reduction)
-        self.loss_fct = nn.CrossEntropyLoss()
-        self.heads_reduction = heads_reduction
-
-    def forward(self, start_logits, end_logits, start_positions, end_positions):
-        start_loss = self.loss_fct(start_logits, start_positions)
-        end_loss = self.loss_fct(end_logits, end_positions)
-        total_loss = start_loss + end_loss
-        if self.heads_reduction == 'mean':
-            total_loss = (start_loss + end_loss)/2
-        return total_loss
-    def __init__(self, loss_fn, heads_reduction='mean'):
-        assert heads_reduction in ['mean', 'sum']
-        super().__init__(size_average, reduce, reduction)
-        self.loss_fct = nn.CrossEntropyLoss()
-        self.heads_reduction = heads_reduction
-"""
-
-
 class JaccardLstm(nn.Module):
 
     def __init__(
@@ -192,31 +140,12 @@ class JaccardLstm(nn.Module):
         return x
 
 
-def printgradnorm(self, grad_input, grad_output):
-    print('Inside ' + self.__class__.__name__ + ' backward')
-    print('Inside class:' + self.__class__.__name__)
-    print('')
-    print('grad_input: ', type(grad_input))
-    print('grad_input[0]: ', type(grad_input[0]))
-    print('grad_output: ', type(grad_output))
-    print('grad_output[0]: ', type(grad_output[0]))
-    print('')
-    print('grad_input size:', grad_input[0].size())
-    print('grad_output size:', grad_output[0].size())
-    print('grad_input norm:', grad_input[0].norm())
-
-
 class JaccardNNApproxLoss(_WeightedLoss):
 
     def __init__(self, path_weights, weight=None, reduction='mean'):
         super().__init__(weight=weight, reduction=reduction)
         self.model = JaccardLstm()
         self.model.load_state_dict(torch.load(path_weights))
-        #for p,data in self.model.named_parameters():
-        #    print(p)
-            #p.register_backward_hook(printgradnorm)
-        #self.model.lstm1.register_backward_hook(printgradnorm)
-        #print(self.model.lstm1.weight_ih_l0.norm())
         self.model.cuda()
         self.default_loss = QACrossEntropyLoss()
 
@@ -224,15 +153,10 @@ class JaccardNNApproxLoss(_WeightedLoss):
                 start_positions, end_positions,
                 bin_sentiment, new_words, bin_sentiment_words):
         self.model.zero_grad()
-        #print(start_logits.requires_grad)
-        #for p in self.model.parameters():
-        #    p.grad.data.zero_()
-        #print(self.model.lstm1.weight_ih_l0.norm())
 
         batch_jaccard_pred = self.model(
             start_logits, end_logits, bin_sentiment,
             new_words, bin_sentiment_words)
-        #print(-torch.mean(batch_jaccard_pred))
 
         default_loss = self.default_loss(start_logits, end_logits, start_positions, end_positions)
-        return 1.5*torch.mean(1 - torch.sigmoid(batch_jaccard_pred)) + default_loss
+        return torch.mean(1 - torch.sigmoid(batch_jaccard_pred)) + default_loss

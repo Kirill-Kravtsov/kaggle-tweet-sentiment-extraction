@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import logging
 from typing import Dict, Tuple, Union
 from pathlib import Path
 import numpy as np
@@ -26,7 +27,6 @@ class JaccardCallback(MetricCallback):
                 metric_fn=jaccard_func_dense,
                 input_key=input_key,
                 output_key=output_key
-                #activation=activation
             )
         else:
             super().__init__(
@@ -34,7 +34,6 @@ class JaccardCallback(MetricCallback):
                 metric_fn=jaccard_func,
                 input_key=input_key,
                 output_key=output_key
-                #activation=activation
             )
 
 
@@ -59,38 +58,23 @@ class SWACallback(Callback):
         )
 
     def on_loader_start(self, state):
-        """
-        if (state.loader_name == "train") and state.epoch > 1:
-            if self.swap_best:
-                if self.best == "train"
-            and state.epoch > (1 + self.num_swap_epochs):
-            state.optimizer.swap_swa_sgd()
-        """
         if state.loader_name == "valid_swa":
             state.optimizer.swap_swa_sgd()
         elif (state.loader_name == "train") and (state.epoch > self.num_swap_epochs+1):
             state.optimizer.swap_swa_sgd()
 
     def on_epoch_end(self, state):
-        #print("swa, epoch_end")
         if self.swap_best:
             train_jac = state.epoch_metrics['valid_jaccard']
             swa_jac = state.epoch_metrics['valid_swa_jaccard']
             # at this point swa weight are in the model
             if train_jac > swa_jac:
                 # rewrite swa weights/loss/jaccard
-                print("Rewriting swa")
                 state.optimizer.update_model_weights()
-                state.epoch_metrics['valid_swa_loss'] = state.epoch_metrics['valid_loss'] 
-                state.epoch_metrics['valid_swa_jaccard'] = state.epoch_metrics['valid_jaccard'] 
+                state.epoch_metrics['valid_swa_loss'] = state.epoch_metrics['valid_loss']
+                state.epoch_metrics['valid_swa_jaccard'] = state.epoch_metrics['valid_jaccard']
             else:
                 state.optimizer.update_swa_weights()
-            #elif state.epoch < state.num_epochs:
-            #    state.optimizer.swap_swa_sgd()
-
-        #elif state.epoch > self.num_swap_epochs:
-        #    state.optimizer.swap_swa_sgd()
-
 
 
 class FreezeControlCallback(Callback):
@@ -98,9 +82,13 @@ class FreezeControlCallback(Callback):
     def __init__(self, schedule, always_frozen=()):
         """
         Layers not found in schedule dict and always_frozen will be trainable
+        Scedule - dict with epoch nums as keys and layer name pattern (or list
+        of them) to unfreeze as values, for example:
+        {2: ["roberta.encoder.layer.2\..*", "roberta.encoder.layer.1\..*"],
+         3: ["roberta.encoder.layer.0.*", "roberta.embeddings.*"]}
         """
         super().__init__(order=CallbackOrder.Internal)
-        self.schedule = schedule 
+        self.schedule = schedule
 
         for k in self.schedule:
             if isinstance(self.schedule[k], str):
@@ -108,20 +96,19 @@ class FreezeControlCallback(Callback):
             self.schedule[k] = [re.compile(pattern) for pattern in self.schedule[k]]
 
         self.always_frozen = [re.compile(pattern) for pattern in always_frozen]
-        
 
     def on_stage_start(self, state):
         for param, data in state.model.named_parameters():
             for pattern in self.always_frozen:
                 if pattern.match(param):
                     data.requires_grad = False
-                    print(f"freeze {param}")
+                    logging.debug(f"freeze {param}")
 
             for epoch, patterns in self.schedule.items():
                 for pattern in patterns:
                     if pattern.match(param):
                         data.requires_grad = False
-                        print(f"freeze {param}")
+                        logging.debug(f"freeze {param}")
 
 
     def on_epoch_start(self, state):
@@ -134,7 +121,7 @@ class FreezeControlCallback(Callback):
                 if pattern.match(param):
                     if pattern.match(param):
                         data.requires_grad = True
-                        print(f"unfreeze {param}")
+                        logging.debug(f"unfreeze {param}")
 
 
 
@@ -221,7 +208,7 @@ class SheduledDropheadCallback(Callback):
 
     def on_batch_end(self, state):
         if state.is_train_loader:
-            step = state.loader_len * (state.epoch-1) + state.loader_step 
+            step = state.loader_len * (state.epoch-1) + state.loader_step
             cur_p = self._get_current_p(step)
             for bert_layer in state.model.roberta.encoder.layer:
                 bert_layer.attention.self.p_drophead = cur_p
@@ -261,7 +248,7 @@ class CustomCheckpointCallback(CheckpointCallback):
                 special_suffix="_full",
             )
         else:
-            full_checkpoint_path = None 
+            full_checkpoint_path = None
 
         exclude = ["criterion", "optimizer", "scheduler"]
         checkpoint_path = utils.save_checkpoint(
