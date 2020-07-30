@@ -144,8 +144,8 @@ def roberta_preprocess(tweet, selected_text, sentiment, tweet_id, tokenizer, max
     }
 
 
-def gpt2_preprocess(tweet, selected_text, sentiment, tokenizer, max_len,
-                       do_lower=True):
+def gpt2_preprocess(tweet, selected_text, sentiment, ids, tokenizer, max_len,
+                    do_lower=True, **kwargs):
     tweet = " ".join(str(tweet).strip().split())
     selected_text = " ".join(str(selected_text).strip().split())
 
@@ -187,9 +187,8 @@ def gpt2_preprocess(tweet, selected_text, sentiment, tokenizer, max_len,
     targets_end += 4
 
     padding_length = max_len - len(input_ids)
-    pad_id = tokenizer.pad_token_id
     if padding_length > 0:
-        input_ids = input_ids + ([pad_id] * padding_length)
+        input_ids = input_ids + ([0] * padding_length)
         mask = mask + ([0] * padding_length)
         token_type_ids = token_type_ids + ([0] * padding_length)
         tweet_offsets = tweet_offsets + ([(0, 0)] * padding_length)
@@ -263,7 +262,8 @@ def process_tweet(tweet, selected_text):
 
 
 
-def bertweet_preprocess(tweet, selected_text, sentiment, tweet_id, tokenizer, max_len, do_lower=True, is_valid_df=False):
+def bertweet_preprocess(tweet, selected_text, sentiment, tweet_id, tokenizer,
+                        max_len, do_lower=True, is_valid_df=False, **kwargs):
     tweet = normalize_space_text(str(tweet))
     selected_text = normalize_space_text(str(selected_text))
 
