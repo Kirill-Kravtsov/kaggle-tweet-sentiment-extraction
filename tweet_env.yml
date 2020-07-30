@@ -19,11 +19,13 @@ dependencies:
   - cryptography=2.9.2=py37h1ba5d50_0
   - cudatoolkit=10.1.243=h6bb024c_0
   - cycler=0.10.0=py37_0
+  - cython=0.29.21=py37he6710b0_0
   - dbus=1.13.14=hb2f20db_0
   - decorator=4.4.2=py_0
   - defusedxml=0.6.0=py_0
   - entrypoints=0.3=py37_0
   - expat=2.2.6=he6710b0_0
+  - fairseq=0.9.0=py37h99015e2_0
   - fontconfig=2.13.0=h9420a91_0
   - freetype=2.9.1=h8a8886c_1
   - glib=2.63.1=h5a9c865_0
@@ -91,6 +93,7 @@ dependencies:
   - pickleshare=0.7.5=py37_0
   - pillow=7.1.2=py37hb39fc2d_0
   - pip=20.0.2=py37_3
+  - portalocker=1.5.2=py37_0
   - prometheus_client=0.7.1=py_0
   - prompt-toolkit=3.0.4=py_0
   - prompt_toolkit=3.0.4=0
@@ -105,6 +108,7 @@ dependencies:
   - pysocks=1.7.1=py37_0
   - python=3.7.7=hcf32534_0_cpython
   - python-dateutil=2.8.1=py_0
+  - python_abi=3.7=1_cp37m
   - pytorch=1.4.0=py3.7_cuda10.1.243_cudnn7.6.3_0
   - pytz=2020.1=py_0
   - pyzmq=18.1.1=py37he6710b0_0
@@ -114,6 +118,7 @@ dependencies:
   - readline=8.0=h7b6447c_0
   - requests=2.23.0=py37_0
   - ruamel_yaml=0.15.87=py37h7b6447c_0
+  - sacrebleu=1.4.10=pyh9f0ad1d_0
   - scipy=1.4.1=py37h0b6359f_0
   - seaborn=0.10.0=py_0
   - send2trash=1.5.0=py37_0
@@ -128,6 +133,7 @@ dependencies:
   - tornado=6.0.4=py37h7b6447c_1
   - tqdm=4.43.0=py_0
   - traitlets=4.3.3=py37_0
+  - typing=3.7.4.3=py37_0
   - urllib3=1.25.8=py37_0
   - wcwidth=0.1.9=py_0
   - webencodings=0.5.1=py37_1
@@ -149,6 +155,7 @@ dependencies:
     - crc32c==2.0
     - deprecation==2.0.7
     - docutils==0.15.2
+    - fastbpe==0.1.0
     - filelock==3.0.12
     - gitdb==4.0.2
     - gitpython==3.1.2
@@ -178,3 +185,5 @@ dependencies:
     - torchcontrib==0.0.2
     - transformers==2.9.0
     - werkzeug==1.0.0
+prefix: /home/kirill/anaconda3/envs/tweet_env
+
