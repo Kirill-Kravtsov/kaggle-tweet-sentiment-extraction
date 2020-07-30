@@ -1,0 +1,26 @@
+tokenizer:
+  __class__: tokenization.BERTweetTokenizer 
+  __overwrite_defaults__: True
+
+dataset:
+  df_path: ../data/train_stratified_5folds_seed24.csv
+  preprocess_fn: datasets.bertweet_preprocess
+
+dataloader:
+  batch_size: 32
+
+model:
+  __class__: transformer_models.RobertaQA
+  __by_method__: from_pretrained
+  pretrained_model_name_or_path: ../pretrained/bertweet/
+
+scheduler:
+  __class__: utils.get_linear_schedule_with_warmup_frac
+  frac_training_steps: 0.1
+
+criterion:
+  heads_reduction: mean
+
+train_params:
+  num_epochs: 5
+

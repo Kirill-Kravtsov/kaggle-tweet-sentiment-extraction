@@ -1,0 +1,21 @@
+dataset:
+  df_path: ../data/train_stratified_5folds.csv
+
+dataloader:
+  batch_size: 32
+
+model:
+  __class__: transformer_models.RobertaCNNQA
+  __by_method__: from_pretrained
+  pretrained_model_name_or_path: ../pretrained/roberta-base/
+
+scheduler:
+  __class__: utils.get_linear_schedule_with_warmup_frac
+  frac_training_steps: 0.1
+
+criterion:
+  heads_reduction: mean
+
+train_params:
+  num_epochs: 5
+

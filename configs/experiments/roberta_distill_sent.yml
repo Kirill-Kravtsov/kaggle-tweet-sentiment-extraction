@@ -1,5 +1,6 @@
 dataset:
   df_path: ../data/train_stratified_5folds.csv
+  do_lower: False
 
 dataloader:
   batch_size: 32
@@ -11,10 +12,15 @@ dataloader:
 #  pretrained_model_name_or_path: mrm8488/distilroberta-base-finetuned-sentiment
 #  cache_dir: ../pretrained/distilroberta-base-finetuned-sentiment/distilroberta-base-finetuned-sentiment-tok
 
+optimizer:
+  lr: 0.00005
+
 model:
   __class__: transformer_models.RobertaQA
   __by_method__: from_pretrained
   pretrained_model_name_or_path: ../pretrained/distilroberta-base-finetuned-sentiment
+  dropout: 0.3
+  pre_head_dropout: 0.3
 
 scheduler:
   __class__: utils.get_linear_schedule_with_warmup_frac
@@ -24,5 +30,5 @@ criterion:
   heads_reduction: mean
 
 train_params:
-  num_epochs: 5
+  num_epochs: 10
 
