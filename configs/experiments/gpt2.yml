@@ -5,6 +5,9 @@ dataset:
 
 tokenizer:
   __class__: transformers.GPT2TokenizerFast
+  __by_method__: from_pretrained
+  __overwrite_defaults__: True
+  pretrained_model_name_or_path: gpt2
 
 dataloader:
   batch_size: 32
@@ -12,7 +15,7 @@ dataloader:
 model:
   __class__: transformer_models.GPT2QA
   __by_method__: from_pretrained
-  pretrained_model_name_or_path: ../pretrained/gpt2/
+  pretrained_model_name_or_path: gpt2
 
 scheduler:
   __class__: utils.get_linear_schedule_with_warmup_frac
