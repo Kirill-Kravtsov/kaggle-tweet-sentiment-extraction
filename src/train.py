@@ -22,7 +22,6 @@ from losses import QACrossEntropyLoss
 from collators import DynamicPaddingCollator
 from callbacks import JaccardCallback, SWACallback, SheduledDropheadCallback
 from utils import seed_torch, processify
-from drophead import set_drophead
 
 
 TRAINING_DEFAULTS = {
@@ -210,7 +209,6 @@ def run_fold(config, args, train_folds, val_fold):
     )
 
     model = create_class_obj(config['model']).cuda()
-    set_drophead(model)
 
     runner = create_class_obj(
         config,
