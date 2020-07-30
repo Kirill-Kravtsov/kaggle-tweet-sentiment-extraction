@@ -1,4 +1,4 @@
-name: ml37
+name: tweet_env
 channels:
   - pytorch
   - defaults
@@ -176,5 +176,3 @@ dependencies:
     - torchcontrib==0.0.2
     - transformers==2.9.0
     - werkzeug==1.0.0
-prefix: /home/kirill/anaconda3/envs/ml37
-
