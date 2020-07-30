@@ -1,7 +1,7 @@
 # A Pytorch pipeline for [Tweet Sentiment Extraction Kaggle competition](https://www.kaggle.com/c/tweet-sentiment-extraction)
 
 ## Introduction
-This is a Pytorch training pipeline for a text span selection task. It also uses [Catalyst](https://github.com/catalyst-team/catalyst) deep learning framework.
+This is a Pytorch training pipeline for a text span selection task. It also uses the [Catalyst](https://github.com/catalyst-team/catalyst) deep learning framework.
 
 ## Installation
 1. You need to have [Anaconda](https://anaconda.org) installed
@@ -20,7 +20,7 @@ conda activate tweet_env
 python create_folds.py
 ```
 
-Project structure:
+## Project structure:
 ```bash
 ├── configs
 │   ├── best_bertweet.yml
