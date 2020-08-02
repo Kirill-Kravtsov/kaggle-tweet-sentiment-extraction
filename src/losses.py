@@ -70,7 +70,6 @@ class SmoothCrossEntropyLoss(_WeightedLoss):
         return total_loss
 
 
-
 class SoftCrossEntropyLoss(_WeightedLoss):
 
     def __init__(self, weight=None, reduction='mean', heads_reduction='mean'):
@@ -101,62 +100,3 @@ class SoftCrossEntropyLoss(_WeightedLoss):
         if self.heads_reduction == 'mean':
             total_loss = (start_loss + end_loss)/2
         return total_loss
-class JaccardLstm(nn.Module):
-
-    def __init__(
-        self,
-    ):
-        super().__init__()
-        self.lstm1 = nn.GRU(5, 128, bidirectional=True, batch_first=True)
-        self.lstm2 = nn.GRU(256 + 5, 256, bidirectional=True, batch_first=True)
-        self.linear1 = nn.Linear(1024 + (256 + 5)*2, 1024)
-        self.linear2 = nn.Linear(1024, 1)
-
-    def forward(self, start_logits, end_logits, bin_sentiment, new_words, bin_sentiment_words):
-        start_probs = torch.softmax(start_logits, dim=1)
-        end_probs = torch.softmax(end_logits, dim=1)
-
-        x = torch.stack((
-                start_probs,
-                end_probs,
-                bin_sentiment,
-                new_words,
-                bin_sentiment_words),
-            dim=-1)
-
-        h_lstm1, _ = self.lstm1(x)
-        x = torch.cat((h_lstm1, x), dim=-1)
-        h_lstm2, _ = self.lstm2(x)
-
-        prev_avg_pool = torch.mean(x, dim=1)
-        prev_max_pool, _ = torch.max(x, dim=1)
-
-        avg_pool = torch.mean(h_lstm2, dim=1)
-        max_pool, _ = torch.max(h_lstm2, dim=1)
-
-        h_conc = torch.cat((max_pool, avg_pool, prev_avg_pool, prev_max_pool), dim=1)
-        x = self.linear1(h_conc)
-        x = self.linear2(x).view(-1)
-        return x
-
-
-class JaccardNNApproxLoss(_WeightedLoss):
-
-    def __init__(self, path_weights, weight=None, reduction='mean'):
-        super().__init__(weight=weight, reduction=reduction)
-        self.model = JaccardLstm()
-        self.model.load_state_dict(torch.load(path_weights))
-        self.model.cuda()
-        self.default_loss = QACrossEntropyLoss()
-
-    def forward(self, start_logits, end_logits,
-                start_positions, end_positions,
-                bin_sentiment, new_words, bin_sentiment_words):
-        self.model.zero_grad()
-
-        batch_jaccard_pred = self.model(
-            start_logits, end_logits, bin_sentiment,
-            new_words, bin_sentiment_words)
-
-        default_loss = self.default_loss(start_logits, end_logits, start_positions, end_positions)
-        return torch.mean(1 - torch.sigmoid(batch_jaccard_pred)) + default_loss
